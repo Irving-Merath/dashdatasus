@@ -1,0 +1,199 @@
+{
+ "nome": "Nascimentos",
+ "sigla": "SINASC",
+ "descricao": "Nascidos vivos por município de residência da mãe (Sistema de Informações sobre Nascidos Vivos).",
+ "unidade": "nascidos vivos",
+ "variaveis": {
+  "sexo": {
+   "rotulo": "Sexo do bebê",
+   "tipo": "categorica",
+   "ordem": [
+    "Masculino",
+    "Feminino",
+    "Ignorado"
+   ]
+  },
+  "raca_cor": {
+   "rotulo": "Raça/cor do bebê",
+   "tipo": "categorica",
+   "ordem": [
+    "Branca",
+    "Preta",
+    "Amarela",
+    "Parda",
+    "Indígena",
+    "Ignorado"
+   ]
+  },
+  "faixa_idade_mae": {
+   "rotulo": "Idade da mãe (faixas)",
+   "tipo": "categorica",
+   "ordem": [
+    "Menos de 15",
+    "15 a 19",
+    "20 a 24",
+    "25 a 29",
+    "30 a 34",
+    "35 a 39",
+    "40 ou mais",
+    "Ignorado"
+   ]
+  },
+  "escolaridade_mae": {
+   "rotulo": "Escolaridade da mãe",
+   "tipo": "categorica",
+   "ordem": [
+    "Nenhuma",
+    "1 a 3 anos",
+    "4 a 7 anos",
+    "8 a 11 anos",
+    "12 anos ou mais",
+    "Ignorado"
+   ]
+  },
+  "parto": {
+   "rotulo": "Tipo de parto",
+   "tipo": "categorica",
+   "ordem": [
+    "Vaginal",
+    "Cesáreo",
+    "Ignorado"
+   ]
+  },
+  "gestacao": {
+   "rotulo": "Semanas de gestação",
+   "tipo": "categorica",
+   "ordem": [
+    "Menos de 22",
+    "22 a 27",
+    "28 a 31",
+    "32 a 36",
+    "37 a 41",
+    "42 ou mais",
+    "Ignorado"
+   ]
+  },
+  "faixa_peso": {
+   "rotulo": "Peso ao nascer (faixas)",
+   "tipo": "categorica",
+   "ordem": [
+    "Menos de 1.500 g",
+    "1.500 a 2.499 g",
+    "2.500 a 3.999 g",
+    "4.000 g ou mais",
+    "Ignorado"
+   ]
+  },
+  "consultas": {
+   "rotulo": "Consultas de pré-natal",
+   "tipo": "categorica",
+   "ordem": [
+    "Nenhuma",
+    "1 a 3",
+    "4 a 6",
+    "7 ou mais",
+    "Ignorado"
+   ]
+  },
+  "local_nascimento": {
+   "rotulo": "Local do nascimento",
+   "tipo": "categorica",
+   "ordem": [
+    "Hospital",
+    "Outro estabelecimento de saúde",
+    "Domicílio",
+    "Aldeia indígena",
+    "Outros",
+    "Ignorado"
+   ]
+  },
+  "mes": {
+   "rotulo": "Mês do nascimento",
+   "tipo": "mes",
+   "ordem": [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez"
+   ]
+  },
+  "idade_mae": {
+   "rotulo": "Idade da mãe",
+   "tipo": "numerica",
+   "unidade": "anos"
+  },
+  "peso": {
+   "rotulo": "Peso ao nascer",
+   "tipo": "numerica",
+   "unidade": "g",
+   "observacao": "Valores arredondados para os 100 g mais próximos."
+  }
+ },
+ "indicadores": [
+  {
+   "rotulo": "Partos cesáreos",
+   "tipo": "pct",
+   "variavel": "parto",
+   "categorias": [
+    "Cesáreo"
+   ]
+  },
+  {
+   "rotulo": "Baixo peso (< 2.500 g)",
+   "tipo": "pct",
+   "variavel": "faixa_peso",
+   "categorias": [
+    "Menos de 1.500 g",
+    "1.500 a 2.499 g"
+   ]
+  },
+  {
+   "rotulo": "Prematuros (< 37 semanas)",
+   "tipo": "pct",
+   "variavel": "gestacao",
+   "categorias": [
+    "Menos de 22",
+    "22 a 27",
+    "28 a 31",
+    "32 a 36"
+   ]
+  },
+  {
+   "rotulo": "Mães com menos de 20 anos",
+   "tipo": "pct",
+   "variavel": "faixa_idade_mae",
+   "categorias": [
+    "Menos de 15",
+    "15 a 19"
+   ]
+  },
+  {
+   "rotulo": "7 ou mais consultas de pré-natal",
+   "tipo": "pct",
+   "variavel": "consultas",
+   "categorias": [
+    "7 ou mais"
+   ]
+  },
+  {
+   "rotulo": "Idade média da mãe",
+   "tipo": "media",
+   "variavel": "idade_mae"
+  },
+  {
+   "rotulo": "Peso médio ao nascer",
+   "tipo": "media",
+   "variavel": "peso"
+  }
+ ],
+ "fonte": "Ministério da Saúde / DATASUS – SINASC",
+ "atualizado_em": "2026-11-06"
+}
