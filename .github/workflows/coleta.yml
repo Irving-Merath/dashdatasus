@@ -8,8 +8,8 @@ on:
       base:
         description: "Base a coletar"
         type: choice
-        default: sinasc
-        options: [sinasc]
+        default: todas
+        options: [todas, sinasc, sim]
 
 permissions:
   contents: write
@@ -25,14 +25,15 @@ jobs:
       max-parallel: 6
       matrix:
         uf: [AC, AL, AM, AP, BA, CE, DF, ES, GO, MA, MG, MS, MT, PA, PB,
-             PE, PI, PR, RJ, RN, RO, RR, RS, SC, SE, SP, TO]
+             PE, PI, PR, RJ, RN, RO, RR, RS, SC, SE, SP, TO,
+             BR]   # BR = robô das bases nacionais (ex.: SINAN)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -r requirements-coleta.txt
-      - run: python coletar.py --base ${{ inputs.base || 'sinasc' }} --uf ${{ matrix.uf }}
+      - run: python coletar.py --base ${{ inputs.base || 'todas' }} --uf ${{ matrix.uf }}
       - uses: actions/upload-artifact@v4
         with:
           name: saida-${{ matrix.uf }}

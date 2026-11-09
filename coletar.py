@@ -12,6 +12,7 @@ ajustadas, se um dia quiser, estão no bloco "CONFIGURAÇÕES" logo abaixo.
 
 Uso (feito pelo robô):
     python coletar.py --base sinasc --uf RJ   -> coleta uma base de um estado
+    python coletar.py --base todas --uf RJ    -> coleta todas as bases ativas
     python coletar.py --consolidar            -> junta os resultados na pasta dados/
 """
 
@@ -335,14 +336,206 @@ def sinasc_agregar(caminho_dbf, uf):
 
 
 # ----------------------------------------------------------------------
+# BASE: SIM (óbitos)
+# ----------------------------------------------------------------------
+def _capitulos_cid10():
+    """Tabela: 3 primeiros caracteres da CID-10 -> capítulo (por extenso)."""
+    faixas_cid = [
+        ("A00", "B99", "Infecciosas e parasitárias"),
+        ("C00", "D48", "Neoplasias (tumores)"),
+        ("D50", "D89", "Sangue e sistema imunitário"),
+        ("E00", "E90", "Endócrinas, nutricionais e metabólicas"),
+        ("F00", "F99", "Transtornos mentais e comportamentais"),
+        ("G00", "G99", "Sistema nervoso"),
+        ("H00", "H59", "Olho e anexos"),
+        ("H60", "H95", "Ouvido"),
+        ("I00", "I99", "Aparelho circulatório"),
+        ("J00", "J99", "Aparelho respiratório"),
+        ("K00", "K93", "Aparelho digestivo"),
+        ("L00", "L99", "Pele e tecido subcutâneo"),
+        ("M00", "M99", "Osteomuscular e tecido conjuntivo"),
+        ("N00", "N99", "Aparelho geniturinário"),
+        ("O00", "O99", "Gravidez, parto e puerpério"),
+        ("P00", "P96", "Afecções perinatais"),
+        ("Q00", "Q99", "Malformações congênitas"),
+        ("R00", "R99", "Causas mal definidas"),
+        ("U00", "U99", "Códigos especiais (inclui COVID-19)"),
+        ("V01", "Y98", "Causas externas"),
+    ]
+    tabela = {}
+    for letra in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        for num in range(100):
+            cod = f"{letra}{num:02d}"
+            for ini, fim, nome in faixas_cid:
+                if ini <= cod <= fim:
+                    tabela[cod] = nome
+                    break
+    return tabela
+
+
+CAPITULOS_CID10 = _capitulos_cid10()
+ORDEM_CAPITULOS = list(dict.fromkeys(CAPITULOS_CID10.values())) + ["Ignorado"]
+
+
+def _tipos_causa_externa():
+    faixas_ext = [
+        ("V01", "V99", "Acidentes de transporte"),
+        ("W00", "W19", "Quedas"),
+        ("W65", "W74", "Afogamentos"),
+        ("X60", "X84", "Lesões autoprovocadas (suicídios)"),
+        ("X85", "Y09", "Agressões (homicídios)"),
+        ("Y10", "Y34", "Intenção indeterminada"),
+        ("Y35", "Y36", "Intervenções legais e operações de guerra"),
+    ]
+    tabela = {}
+    for cod, cap in CAPITULOS_CID10.items():
+        if cap != "Causas externas":
+            continue
+        tabela[cod] = "Demais causas externas"
+        for ini, fim, nome in faixas_ext:
+            if ini <= cod <= fim:
+                tabela[cod] = nome
+                break
+    return tabela
+
+
+TIPOS_CAUSA_EXTERNA = _tipos_causa_externa()
+
+SIM_FAIXAS = ["Menor de 1 ano", "1 a 4", "5 a 9", "10 a 14", "15 a 19", "20 a 29",
+              "30 a 39", "40 a 49", "50 a 59", "60 a 69", "70 a 79", "80 ou mais"]
+
+SIM_META = {
+    "nome": "Óbitos",
+    "sigla": "SIM",
+    "descricao": "Óbitos por município de residência (Sistema de Informações sobre "
+                 "Mortalidade). Causa = causa básica do óbito, agrupada pelos "
+                 "capítulos da CID-10.",
+    "unidade": "óbitos",
+    "variaveis": {
+        "sexo": {"rotulo": "Sexo", "tipo": "categorica",
+                 "ordem": ["Masculino", "Feminino", "Ignorado"]},
+        "faixa_etaria": {"rotulo": "Faixa etária", "tipo": "categorica",
+                         "ordem": SIM_FAIXAS + ["Ignorado"]},
+        "raca_cor": {"rotulo": "Raça/cor", "tipo": "categorica",
+                     "ordem": ["Branca", "Preta", "Amarela", "Parda", "Indígena", "Ignorado"]},
+        "escolaridade": {"rotulo": "Escolaridade", "tipo": "categorica",
+                         "ordem": ["Nenhuma", "1 a 3 anos", "4 a 7 anos",
+                                   "8 a 11 anos", "12 anos ou mais", "Ignorado"]},
+        "estado_civil": {"rotulo": "Estado civil", "tipo": "categorica",
+                         "ordem": ["Solteiro(a)", "Casado(a)", "Viúvo(a)",
+                                   "Separado(a)/divorciado(a)", "União estável", "Ignorado"]},
+        "capitulo_cid": {"rotulo": "Causa do óbito (capítulo da CID-10)",
+                         "tipo": "categorica", "ordem": ORDEM_CAPITULOS},
+        "causa_externa": {"rotulo": "Tipo de causa externa", "tipo": "categorica",
+                          "ordem": ["Acidentes de transporte", "Quedas", "Afogamentos",
+                                    "Lesões autoprovocadas (suicídios)",
+                                    "Agressões (homicídios)", "Intenção indeterminada",
+                                    "Intervenções legais e operações de guerra",
+                                    "Demais causas externas"],
+                          "observacao": "Considera apenas os óbitos por causas externas."},
+        "local_ocorrencia": {"rotulo": "Local do óbito", "tipo": "categorica",
+                             "ordem": ["Hospital", "Outro estabelecimento de saúde",
+                                       "Domicílio", "Via pública", "Aldeia indígena",
+                                       "Outros", "Ignorado"]},
+        "mes": {"rotulo": "Mês do óbito", "tipo": "mes", "ordem": MESES},
+        "idade": {"rotulo": "Idade ao morrer", "tipo": "numerica", "unidade": "anos",
+                  "observacao": "Menores de 1 ano contam como 0."},
+    },
+    "indicadores": [
+        {"rotulo": "Óbitos de menores de 1 ano", "tipo": "pct", "variavel": "faixa_etaria",
+         "categorias": ["Menor de 1 ano"]},
+        {"rotulo": "Aparelho circulatório", "tipo": "pct", "variavel": "capitulo_cid",
+         "categorias": ["Aparelho circulatório"]},
+        {"rotulo": "Neoplasias (tumores)", "tipo": "pct", "variavel": "capitulo_cid",
+         "categorias": ["Neoplasias (tumores)"]},
+        {"rotulo": "Causas externas", "tipo": "pct", "variavel": "capitulo_cid",
+         "categorias": ["Causas externas"]},
+        {"rotulo": "Causas mal definidas", "tipo": "pct", "variavel": "capitulo_cid",
+         "categorias": ["Causas mal definidas"]},
+        {"rotulo": "Óbitos em hospital", "tipo": "pct", "variavel": "local_ocorrencia",
+         "categorias": ["Hospital"]},
+        {"rotulo": "Idade média ao morrer", "tipo": "media", "variavel": "idade"},
+    ],
+    "fonte": "Ministério da Saúde / DATASUS – SIM",
+}
+
+SIM_PASTAS = [
+    ("/dissemin/publicos/SIM/CID10/DORES", "final"),
+    ("/dissemin/publicos/SIM/PRELIM/DORES", "preliminar"),
+]
+
+
+def sim_arquivos(uf, ano):
+    return [f"DO{uf}{ano}.DBC"]
+
+
+def sim_idade_anos(serie):
+    """Converte o campo IDADE do SIM (3 dígitos: unidade + valor) para anos."""
+    s = serie.str.zfill(3)
+    unidade = s.str[0]
+    valor = pd.to_numeric(s.str[1:3], errors="coerce")
+    anos = pd.Series(np.nan, index=serie.index)
+    anos[unidade.isin(["0", "1", "2", "3"])] = 0  # minutos, horas, dias, meses
+    anos[unidade == "4"] = valor[unidade == "4"]
+    anos[unidade == "5"] = 100 + valor[unidade == "5"]
+    anos[(serie.str.len() == 0) | (s == "999")] = np.nan
+    return anos.where(anos <= 125)
+
+
+def sim_agregar(caminho_dbf, uf):
+    cols = ["CODMUNRES", "SEXO", "IDADE", "RACACOR", "ESC", "ESTCIV",
+            "CAUSABAS", "LOCOCOR", "DTOBITO", "TIPOBITO"]
+    partes = []
+    for b in ler_dbf(caminho_dbf, cols):
+        b = b[b["TIPOBITO"] != "1"]  # deixa de fora óbitos fetais
+        df = pd.DataFrame({"cod_mun": b["CODMUNRES"].str[:6]})
+        df.loc[~df["cod_mun"].str.fullmatch(r"\d{6}"), "cod_mun"] = COD_UF[uf] + "0000"
+        idade = sim_idade_anos(b["IDADE"])
+        cid3 = b["CAUSABAS"].str.upper().str[:3]
+        mes = pd.to_numeric(b["DTOBITO"].str[2:4], errors="coerce")
+
+        df["total"] = "Total"
+        df["sexo"] = mapear(b["SEXO"], {"1": "Masculino", "M": "Masculino",
+                                        "2": "Feminino", "F": "Feminino"})
+        df["faixa_etaria"] = faixas(idade, [0, 1, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 200],
+                                    SIM_FAIXAS)
+        df["raca_cor"] = mapear(b["RACACOR"], {"1": "Branca", "2": "Preta", "3": "Amarela",
+                                               "4": "Parda", "5": "Indígena"})
+        df["escolaridade"] = mapear(b["ESC"], {"1": "Nenhuma", "2": "1 a 3 anos",
+                                               "3": "4 a 7 anos", "4": "8 a 11 anos",
+                                               "5": "12 anos ou mais"})
+        df["estado_civil"] = mapear(b["ESTCIV"], {"1": "Solteiro(a)", "2": "Casado(a)",
+                                                  "3": "Viúvo(a)",
+                                                  "4": "Separado(a)/divorciado(a)",
+                                                  "5": "União estável"})
+        df["capitulo_cid"] = mapear(cid3, CAPITULOS_CID10)
+        df["causa_externa"] = cid3.map(TIPOS_CAUSA_EXTERNA)
+        df["local_ocorrencia"] = mapear(b["LOCOCOR"], {
+            "1": "Hospital", "2": "Outro estabelecimento de saúde", "3": "Domicílio",
+            "4": "Via pública", "5": "Outros", "6": "Aldeia indígena"})
+        df["mes"] = mes.map(lambda m: MESES[int(m) - 1] if m == m and 1 <= m <= 12 else None)
+        df["idade"] = idade.astype("Int64")
+
+        for var in ["total", "sexo", "faixa_etaria", "raca_cor", "escolaridade",
+                    "estado_civil", "capitulo_cid", "causa_externa", "local_ocorrencia",
+                    "mes", "idade"]:
+            sub = df[["cod_mun", var]].dropna()
+            partes.append(contar(sub, var, var))
+    return somar_partes(partes)
+
+
+# ----------------------------------------------------------------------
 # CATÁLOGO DE BASES
 # Bases com "ativa": False aparecem no dashboard como "em breve".
 # Elas serão ativadas uma por vez, nas próximas etapas.
+# "escopo": "uf" = arquivos por estado; "nacional" = arquivos do Brasil todo
+# (estes são coletados pelo robô "BR").
 # ----------------------------------------------------------------------
 BASES = {
     "sinasc": {"ativa": True, "meta": SINASC_META, "pastas": SINASC_PASTAS,
                "arquivos": sinasc_arquivos, "agregar": sinasc_agregar},
-    "sim": {"ativa": False, "meta": {"nome": "Óbitos", "sigla": "SIM"}},
+    "sim": {"ativa": True, "meta": SIM_META, "pastas": SIM_PASTAS,
+            "arquivos": sim_arquivos, "agregar": sim_agregar},
     "sih": {"ativa": False, "meta": {"nome": "Internações hospitalares", "sigla": "SIH"}},
     "sinan": {"ativa": False, "meta": {"nome": "Doenças de notificação", "sigla": "SINAN"}},
     "cnes": {"ativa": False, "meta": {"nome": "Estabelecimentos de saúde", "sigla": "CNES"}},
@@ -436,20 +629,36 @@ def coletar(base, uf):
 # CONSOLIDAÇÃO (junta o trabalho de todos os robôs)
 # ----------------------------------------------------------------------
 def atualizar_municipios():
-    """Baixa os nomes dos municípios do IBGE (só se ainda não tiver)."""
+    """Baixa os nomes dos municípios (só se ainda não tiver).
+
+    Tenta primeiro a API do IBGE; se ela não responder (o que acontece com
+    acessos vindos de fora do Brasil), usa uma cópia pública no GitHub.
+    """
     destino = PASTA_DADOS / "municipios.csv"
     if destino.exists():
         return
+    import requests
+    tabela = None
     try:
-        import requests
         url = "https://servicodados.ibge.gov.br/api/v1/localidades/municipios"
         dados = requests.get(url, timeout=60).json()
-        linhas = [{"cod_mun": str(m["id"])[:6], "municipio": m["nome"],
-                   "uf": UFS.get(str(m["id"])[:2], "")} for m in dados]
-        pd.DataFrame(linhas).sort_values("cod_mun").to_csv(destino, index=False)
-        log(f"Lista de municípios salva ({len(linhas)}).")
+        tabela = pd.DataFrame([{"cod_mun": str(m["id"])[:6], "municipio": m["nome"]}
+                               for m in dados])
     except Exception as e:  # noqa: BLE001
-        aviso(f"Não foi possível baixar os nomes dos municípios do IBGE: {e}")
+        log(f"API do IBGE indisponível ({e}). Usando a cópia no GitHub.")
+    if tabela is None or len(tabela) < 5000:
+        try:
+            url = ("https://raw.githubusercontent.com/kelvins/municipios-brasileiros/"
+                   "main/csv/municipios.csv")
+            m = pd.read_csv(url, dtype=str)
+            tabela = pd.DataFrame({"cod_mun": m["codigo_ibge"].str[:6],
+                                   "municipio": m["nome"]})
+        except Exception as e:  # noqa: BLE001
+            aviso(f"Não foi possível baixar os nomes dos municípios: {e}")
+            return
+    tabela["uf"] = tabela["cod_mun"].str[:2].map(UFS)
+    tabela.sort_values("cod_mun").to_csv(destino, index=False)
+    log(f"Lista de municípios salva ({len(tabela)}).")
 
 
 def consolidar():
@@ -478,15 +687,30 @@ def consolidar():
     log("Consolidação concluída.")
 
 
+def coletar_varias(base, uf):
+    """'todas' = todas as bases ativas. O robô 'BR' cuida das bases nacionais."""
+    nomes = [b for b, c in BASES.items() if c.get("ativa")] if base == "todas" else [base]
+    for nome in nomes:
+        if nome not in BASES:
+            aviso(f"Base desconhecida: {nome}")
+            continue
+        nacional = BASES[nome].get("escopo", "uf") == "nacional"
+        if (uf == "BR") != nacional:
+            continue  # este robô não cuida desta base
+        log(f"===== {nome.upper()} / {uf} =====")
+        coletar(nome, uf)
+    return 0
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base")
-    ap.add_argument("--uf")
+    ap.add_argument("--base", help="nome da base ou 'todas'")
+    ap.add_argument("--uf", help="sigla do estado ou BR")
     ap.add_argument("--consolidar", action="store_true")
     a = ap.parse_args()
     if a.consolidar:
         consolidar()
     elif a.base and a.uf:
-        sys.exit(coletar(a.base.lower(), a.uf.upper()))
+        sys.exit(coletar_varias(a.base.lower(), a.uf.upper()))
     else:
         ap.print_help()
