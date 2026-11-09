@@ -9,7 +9,7 @@ on:
         description: "Base a coletar"
         type: choice
         default: todas
-        options: [todas, sinasc, sim]
+        options: [todas, sinasc, sim, sih]
 
 permissions:
   contents: write

@@ -525,6 +525,163 @@ def sim_agregar(caminho_dbf, uf):
 
 
 # ----------------------------------------------------------------------
+# BASE: SIH (internações hospitalares)
+# Um arquivo por estado e mês (RDUFAAMM.DBC). Os 12 meses de um ano são
+# somados num único resumo. O ano é o de processamento (competência) da
+# AIH, como no padrão do Tabnet.
+# ----------------------------------------------------------------------
+# No diagnóstico de internação aparecem capítulos que não valem como causa
+# de óbito (lesões S/T e fatores Z), então o SIH usa uma tabela ampliada.
+CAPITULOS_CID10_SIH = dict(CAPITULOS_CID10)
+for _letra in "STZ":
+    for _num in range(100):
+        _cod = f"{_letra}{_num:02d}"
+        if _letra == "Z":
+            CAPITULOS_CID10_SIH[_cod] = "Contatos com serviços de saúde (Z)"
+        elif _cod <= "T98":
+            CAPITULOS_CID10_SIH[_cod] = "Lesões, envenenamentos e traumatismos"
+ORDEM_CAPITULOS_SIH = [c for c in ORDEM_CAPITULOS if c != "Ignorado"] + [
+    "Lesões, envenenamentos e traumatismos", "Contatos com serviços de saúde (Z)", "Ignorado"]
+
+SIH_ESPEC = {"01": "Cirúrgico", "09": "Cirúrgico", "02": "Obstétrico", "03": "Clínico",
+             "07": "Pediátrico", "05": "Psiquiátrico", "14": "Psiquiátrico",
+             "04": "Cuidados prolongados", "06": "Tisiologia", "08": "Reabilitação"}
+
+SIH_META = {
+    "nome": "Internações hospitalares",
+    "sigla": "SIH",
+    "descricao": "Internações pagas pelo SUS (AIH aprovadas, sem as de longa permanência), "
+                 "por município do hospital e ano de processamento (Sistema de "
+                 "Informações Hospitalares). Diagnóstico = diagnóstico principal, "
+                 "agrupado pelos capítulos da CID-10.",
+    "unidade": "internações",
+    "variaveis": {
+        "sexo": {"rotulo": "Sexo", "tipo": "categorica",
+                 "ordem": ["Masculino", "Feminino", "Ignorado"]},
+        "faixa_etaria": {"rotulo": "Faixa etária", "tipo": "categorica",
+                         "ordem": SIM_FAIXAS + ["Ignorado"]},
+        "raca_cor": {"rotulo": "Raça/cor", "tipo": "categorica",
+                     "ordem": ["Branca", "Preta", "Amarela", "Parda", "Indígena", "Ignorado"]},
+        "capitulo_cid": {"rotulo": "Diagnóstico principal (capítulo da CID-10)",
+                         "tipo": "categorica", "ordem": ORDEM_CAPITULOS_SIH},
+        "carater": {"rotulo": "Caráter do atendimento", "tipo": "categorica",
+                    "ordem": ["Eletivo", "Urgência", "Acidentes e lesões", "Ignorado"]},
+        "especialidade": {"rotulo": "Especialidade do leito", "tipo": "categorica",
+                          "ordem": ["Clínico", "Cirúrgico", "Obstétrico", "Pediátrico",
+                                    "Psiquiátrico", "Cuidados prolongados", "Tisiologia",
+                                    "Reabilitação", "Outros"]},
+        "complexidade": {"rotulo": "Complexidade", "tipo": "categorica",
+                         "ordem": ["Atenção básica", "Média complexidade",
+                                   "Alta complexidade", "Ignorado"]},
+        "uti": {"rotulo": "Uso de UTI", "tipo": "categorica",
+                "ordem": ["Com UTI", "Sem UTI"]},
+        "desfecho": {"rotulo": "Óbito na internação", "tipo": "categorica",
+                     "ordem": ["Óbito", "Sem óbito"]},
+        "procedencia": {"rotulo": "Onde o paciente mora", "tipo": "categorica",
+                        "ordem": ["No próprio município", "Outro município do estado",
+                                  "Outro estado", "Ignorado"]},
+        "mes": {"rotulo": "Mês de processamento", "tipo": "mes", "ordem": MESES},
+        "idade": {"rotulo": "Idade", "tipo": "numerica", "unidade": "anos",
+                  "observacao": "Menores de 1 ano contam como 0."},
+        "dias": {"rotulo": "Dias de internação", "tipo": "numerica", "unidade": "dias"},
+        "valor": {"rotulo": "Valor pago por internação", "tipo": "numerica", "unidade": "R$",
+                  "observacao": "Valores arredondados (R$ 1 até R$ 100; R$ 10 até R$ 1.000; "
+                                "R$ 100 até R$ 10.000; R$ 1.000 acima disso)."},
+    },
+    "indicadores": [
+        {"rotulo": "Mortalidade hospitalar", "tipo": "pct", "variavel": "desfecho",
+         "categorias": ["Óbito"]},
+        {"rotulo": "Internações de urgência", "tipo": "pct", "variavel": "carater",
+         "categorias": ["Urgência", "Acidentes e lesões"]},
+        {"rotulo": "Com uso de UTI", "tipo": "pct", "variavel": "uti",
+         "categorias": ["Com UTI"]},
+        {"rotulo": "Alta complexidade", "tipo": "pct", "variavel": "complexidade",
+         "categorias": ["Alta complexidade"]},
+        {"rotulo": "Pacientes de outros municípios", "tipo": "pct", "variavel": "procedencia",
+         "categorias": ["Outro município do estado", "Outro estado"]},
+        {"rotulo": "Permanência média", "tipo": "media", "variavel": "dias"},
+        {"rotulo": "Valor médio por internação", "tipo": "media", "variavel": "valor"},
+        {"rotulo": "Valor total pago", "tipo": "soma", "variavel": "valor"},
+    ],
+    "fonte": "Ministério da Saúde / DATASUS – SIH/SUS",
+}
+
+SIH_PASTAS = [("/dissemin/publicos/SIHSUS/200801_/Dados", "final")]
+
+
+def sih_arquivos(uf, ano):
+    return [f"RD{uf}{ano % 100:02d}{mes:02d}.DBC" for mes in range(1, 13)]
+
+
+def sih_idade_anos(cod_idade, idade):
+    """COD_IDADE diz a unidade (2 dias, 3 meses, 4 anos, 5 centenas de anos)."""
+    valor = pd.to_numeric(idade, errors="coerce")
+    anos = pd.Series(np.nan, index=idade.index)
+    anos[cod_idade.isin(["1", "2", "3"])] = 0
+    anos[cod_idade == "4"] = valor[cod_idade == "4"]
+    anos[cod_idade == "5"] = 100 + valor[cod_idade == "5"]
+    return anos.where((anos >= 0) & (anos <= 125))
+
+
+def arredondar_valor(v):
+    """Arredonda valores em reais numa escala que cresce com o valor."""
+    passo = np.select([v < 100, v < 1_000, v < 10_000], [1, 10, 100], 1_000)
+    return (np.round(v / passo) * passo).astype("Int64")
+
+
+def sih_agregar(caminho_dbf, uf):
+    cols = ["IDENT", "MUNIC_MOV", "MUNIC_RES", "SEXO", "COD_IDADE", "IDADE", "RACA_COR",
+            "DIAG_PRINC", "CAR_INT", "ESPEC", "COMPLEX", "UTI_MES_TO", "MORTE",
+            "DIAS_PERM", "VAL_TOT", "MES_CMPT"]
+    partes = []
+    for b in ler_dbf(caminho_dbf, cols):
+        b = b[b["IDENT"] != "5"]  # deixa de fora as AIH de longa permanência
+        mov = b["MUNIC_MOV"].str[:6]
+        res = b["MUNIC_RES"].str[:6]
+        df = pd.DataFrame({"cod_mun": mov})
+        df.loc[~mov.str.fullmatch(r"\d{6}"), "cod_mun"] = COD_UF[uf] + "0000"
+        idade = sih_idade_anos(b["COD_IDADE"], b["IDADE"])
+        dias = pd.to_numeric(b["DIAS_PERM"], errors="coerce")
+        dias = dias.where((dias >= 0) & (dias <= 365))
+        valor = pd.to_numeric(b["VAL_TOT"], errors="coerce")
+        valor = valor.where(valor >= 0)
+        uti = pd.to_numeric(b["UTI_MES_TO"], errors="coerce").fillna(0)
+        mes = pd.to_numeric(b["MES_CMPT"], errors="coerce")
+        res_ok = res.str.fullmatch(r"\d{6}")
+
+        df["total"] = "Total"
+        df["sexo"] = mapear(b["SEXO"], {"1": "Masculino", "2": "Feminino", "3": "Feminino"})
+        df["faixa_etaria"] = faixas(idade, [0, 1, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 200],
+                                    SIM_FAIXAS)
+        df["raca_cor"] = mapear(b["RACA_COR"].str.zfill(2), {
+            "01": "Branca", "02": "Preta", "03": "Parda", "04": "Amarela", "05": "Indígena"})
+        df["capitulo_cid"] = mapear(b["DIAG_PRINC"].str.upper().str[:3], CAPITULOS_CID10_SIH)
+        df["carater"] = mapear(b["CAR_INT"].str.zfill(2), {
+            "01": "Eletivo", "02": "Urgência", "03": "Acidentes e lesões",
+            "04": "Acidentes e lesões", "05": "Acidentes e lesões", "06": "Acidentes e lesões"})
+        df["especialidade"] = mapear(b["ESPEC"].str.zfill(2), SIH_ESPEC, padrao="Outros")
+        df["complexidade"] = mapear(b["COMPLEX"].str.zfill(2), {
+            "01": "Atenção básica", "02": "Média complexidade", "03": "Alta complexidade"})
+        df["uti"] = np.where(uti > 0, "Com UTI", "Sem UTI")
+        df["desfecho"] = np.where(b["MORTE"] == "1", "Óbito", "Sem óbito")
+        df["procedencia"] = np.select(
+            [~res_ok, res == mov, res.str[:2] == mov.str[:2]],
+            ["Ignorado", "No próprio município", "Outro município do estado"],
+            "Outro estado")
+        df["mes"] = mes.map(lambda m: MESES[int(m) - 1] if m == m and 1 <= m <= 12 else None)
+        df["idade"] = idade.astype("Int64")
+        df["dias"] = dias.astype("Int64")
+        df["valor"] = arredondar_valor(valor)
+
+        for var in ["total", "sexo", "faixa_etaria", "raca_cor", "capitulo_cid", "carater",
+                    "especialidade", "complexidade", "uti", "desfecho", "procedencia",
+                    "mes", "idade", "dias", "valor"]:
+            sub = df[["cod_mun", var]].dropna()
+            partes.append(contar(sub, var, var))
+    return somar_partes(partes)
+
+
+# ----------------------------------------------------------------------
 # CATÁLOGO DE BASES
 # Bases com "ativa": False aparecem no dashboard como "em breve".
 # Elas serão ativadas uma por vez, nas próximas etapas.
@@ -536,7 +693,8 @@ BASES = {
                "arquivos": sinasc_arquivos, "agregar": sinasc_agregar},
     "sim": {"ativa": True, "meta": SIM_META, "pastas": SIM_PASTAS,
             "arquivos": sim_arquivos, "agregar": sim_agregar},
-    "sih": {"ativa": False, "meta": {"nome": "Internações hospitalares", "sigla": "SIH"}},
+    "sih": {"ativa": True, "meta": SIH_META, "pastas": SIH_PASTAS,
+            "arquivos": sih_arquivos, "agregar": sih_agregar},
     "sinan": {"ativa": False, "meta": {"nome": "Doenças de notificação", "sigla": "SINAN"}},
     "cnes": {"ativa": False, "meta": {"nome": "Estabelecimentos de saúde", "sigla": "CNES"}},
     "sia": {"ativa": False, "meta": {"nome": "Atendimentos ambulatoriais", "sigla": "SIA"}},
@@ -570,50 +728,70 @@ def coletar(base, uf):
     falhas, novos = [], 0
     tmp = Path(tempfile.mkdtemp())
 
-    for ano in range(ANO_INICIAL, ANO_FINAL + 1):
-        for nome in cfg["arquivos"](uf, ano):
+    for ano in range(cfg.get("ano_inicial", ANO_INICIAL), ANO_FINAL + 1):
+        # Um ano pode ter um arquivo (SINASC, SIM) ou vários (SIH: um por mês);
+        # todos são somados num único resumo do ano.
+        nomes = cfg["arquivos"](uf, ano)
+        rotulo = nomes[0] if len(nomes) == 1 else f"{base.upper()} {uf} {ano}"
+        achados, faltando = [], []
+        for nome in nomes:
             pasta, real, situacao = ftp.encontrar(cfg["pastas"], nome)
-            if not pasta:
-                log(f"{nome}: não encontrado no DATASUS (talvez ainda não publicado).")
-                continue
-            tam = ftp.tamanho(pasta, real)
-            chave = f"{ano}"
-            assinatura = f"{pasta}/{real}:{tam}"
-            arq_final = PASTA_DADOS / base / f"{uf}_{ano}.parquet"
-            if controle.get(chave) == assinatura and arq_final.exists():
-                log(f"{nome}: sem mudanças desde a última coleta. Pulando.")
-                continue
+            if pasta:
+                achados.append((nome, pasta, real, situacao, ftp.tamanho(pasta, real)))
+            else:
+                faltando.append(nome)
+        if not achados:
+            log(f"{rotulo}: não encontrado no DATASUS (talvez ainda não publicado).")
+            continue
+        if faltando:
+            log(f"{rotulo}: {len(faltando)} de {len(nomes)} arquivo(s) ainda não publicado(s).")
 
+        chave = f"{ano}"
+        assinatura = "|".join(f"{p}/{r}:{t}" for _, p, r, _, t in achados)
+        arq_final = PASTA_DADOS / base / f"{uf}_{ano}.parquet"
+        arq_prelim = arq_final.with_name(f"{uf}_{ano}_prelim.parquet")
+        if controle.get(chave) == assinatura and (arq_final.exists() or arq_prelim.exists()):
+            log(f"{rotulo}: sem mudanças desde a última coleta. Pulando.")
+            continue
+
+        preliminar = bool(faltando) or any(s != "final" for _, _, _, s, _ in achados)
+        resumos, falhou = [], False
+        for nome, pasta, real, situacao, tam in achados:
             log(f"{nome}: baixando ({situacao}, {tam or '?'} bytes)...")
             dbc, dbf = tmp / real, tmp / (Path(real).stem + ".dbf")
             if not ftp.baixar(pasta, real, dbc):
                 falhas.append(nome)
-                continue
+                falhou = True
+                break
             try:
                 dbc_para_dbf(dbc, dbf)
-                res = cfg["agregar"](dbf, uf)
+                resumos.append(cfg["agregar"](dbf, uf))
             except Exception as e:  # noqa: BLE001
                 aviso(f"{nome}: erro ao processar ({e}).")
                 falhas.append(nome)
-                continue
+                falhou = True
+                break
             finally:
                 for p in (dbc, dbf):
                     p.unlink(missing_ok=True)
+        if falhou:
+            continue  # o ano inteiro fica para a próxima execução
 
-            res.insert(0, "ano", ano)
-            res["n"] = res["n"].astype("int32")
-            sufixo = "" if situacao == "final" else "_prelim"
-            res.to_parquet(saida / f"{uf}_{ano}{sufixo}.parquet", index=False)
+        res = resumos[0] if len(resumos) == 1 else somar_partes(resumos)
+        res.insert(0, "ano", ano)
+        res["n"] = res["n"].astype("int32")
+        sufixo = "_prelim" if preliminar else ""
+        res.to_parquet(saida / f"{uf}_{ano}{sufixo}.parquet", index=False)
 
-            # versão resumida por estado (usada na visão "Brasil")
-            r_uf = (res.groupby(["ano", "variavel", "categoria"])["n"].sum()
-                       .reset_index())
-            r_uf.insert(1, "cod_mun", COD_UF[uf])
-            r_uf.to_parquet(saida / "_uf" / f"{uf}_{ano}{sufixo}.parquet", index=False)
+        # versão resumida por estado (usada na visão "Brasil")
+        r_uf = (res.groupby(["ano", "variavel", "categoria"])["n"].sum()
+                   .reset_index())
+        r_uf.insert(1, "cod_mun", COD_UF[uf])
+        r_uf.to_parquet(saida / "_uf" / f"{uf}_{ano}{sufixo}.parquet", index=False)
 
-            controle[chave] = assinatura
-            novos += 1
-            log(f"{nome}: ok ({int(res.loc[res.variavel == 'total', 'n'].sum()):,} registros).")
+        controle[chave] = assinatura
+        novos += 1
+        log(f"{rotulo}: ok ({int(res.loc[res.variavel == 'total', 'n'].sum()):,} registros).")
 
     (saida / "_controle" / f"{uf}.json").write_text(
         json.dumps(controle, indent=1), encoding="utf-8")

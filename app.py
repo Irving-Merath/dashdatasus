@@ -82,6 +82,17 @@ def fmt_dec(x, casas=1):
     return s.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def fmt_unidade(x, un):
+    """Número com a unidade: 'R$ 1.234,56', '3.250 g', '27,4 anos'."""
+    if un == "R$":
+        for limite, nome in ((1e9, "bilhões"), (1e6, "milhões")):
+            if abs(x) >= limite:
+                return f"R$ {fmt_dec(x / limite, 1)} {nome}"
+        return f"R$ {fmt_dec(x, 2)}"
+    casas = 0 if un == "g" else 1
+    return f"{fmt_dec(x, casas)} {un}".strip()
+
+
 # ----------------------------------------------------------------------
 # Leitura dos dados
 # ----------------------------------------------------------------------
@@ -201,6 +212,9 @@ def valor_indicador(df, ind):
         return proporcao(df, ind["variavel"], ind["categorias"])
     if ind["tipo"] == "media":
         return media(df, ind["variavel"])
+    if ind["tipo"] == "soma":
+        cont = valores_numericos(df, ind["variavel"])
+        return float((cont.index.to_numpy(float) * cont.to_numpy(float)).sum())
     return total(df)
 
 
@@ -209,10 +223,9 @@ def formatar_indicador(valor, ind, meta):
         return "–"
     if ind["tipo"] == "pct":
         return f"{fmt_dec(valor)}%"
-    if ind["tipo"] == "media":
+    if ind["tipo"] in ("media", "soma"):
         un = meta["variaveis"].get(ind["variavel"], {}).get("unidade", "")
-        casas = 0 if un == "g" else 1
-        return f"{fmt_dec(valor, casas)} {un}".strip()
+        return fmt_unidade(valor, un)
     return fmt_int(valor)
 
 
@@ -367,14 +380,13 @@ with aba2:
             fig = go.Figure(go.Bar(x=cont.index, y=cont.values, marker_color=COR_PRINCIPAL))
             for nome, cor, traco in (("Média", CORES[1], "dash"), ("Mediana", CORES[2], "dot")):
                 fig.add_vline(x=r[nome], line_color=cor, line_dash=traco,
-                              annotation_text=f"{nome}: {fmt_dec(r[nome], 0 if un == 'g' else 1)}")
+                              annotation_text=f"{nome}: {fmt_unidade(r[nome], un)}")
             fig.update_xaxes(title=f"{info['rotulo']} ({un})")
             fig.update_yaxes(title="Quantidade")
             st.plotly_chart(estilo(fig), config=CONFIG_GRAF)
-            casas = 0 if un == "g" else 1
             tab = pd.DataFrame({
                 "Estatística": list(r.keys()),
-                "Valor": [fmt_int(r["N"])] + [f"{fmt_dec(v, casas)} {un}" for k, v in r.items()
+                "Valor": [fmt_int(r["N"])] + [fmt_unidade(v, un) for k, v in r.items()
                                               if k != "N"],
             })
             tab.loc[0, "Estatística"] = "Registros com valor válido"
