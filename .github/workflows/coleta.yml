@@ -46,7 +46,11 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      # usa a versão MAIS RECENTE do repositório (e não a do momento em que
+      # a coleta começou), para não brigar com o que foi salvo nesse meio-tempo
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -65,6 +69,13 @@ jobs:
             echo "Nenhum dado novo."
           else
             git commit -m "Atualiza dados ($(date +%F))"
-            git pull --rebase
-            git push
+            # se alguém salvou algo no meio-tempo, junta as versões; em caso de
+            # conflito num arquivo de dados, vale o que o robô acabou de coletar
+            for tentativa in 1 2 3; do
+              git pull --rebase -X theirs && git push && exit 0
+              git rebase --abort 2>/dev/null || true
+              sleep 15
+            done
+            echo "::error::Não foi possível salvar os dados no repositório."
+            exit 1
           fi
