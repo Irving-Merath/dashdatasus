@@ -85,8 +85,18 @@ def fmt_dec(x, casas=1):
 # ----------------------------------------------------------------------
 # Leitura dos dados
 # ----------------------------------------------------------------------
+def versao_dados():
+    """Assinatura dos dados: muda sempre que o robô salva algo novo.
+
+    Ela é passada para as funções abaixo; quando muda, o dashboard
+    descarta a memória (cache) e relê os arquivos na hora.
+    """
+    arqs = [PASTA / "municipios.csv"] + [PASTA / b / "_meta.json" for b in CATALOGO]
+    return tuple(a.stat().st_mtime if a.exists() else 0 for a in arqs)
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
-def ler_metas():
+def ler_metas(versao):
     metas = {}
     for base in CATALOGO:
         arq = PASTA / base / "_meta.json"
@@ -96,7 +106,7 @@ def ler_metas():
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def listar_arquivos(base):
+def listar_arquivos(base, versao):
     """Devolve uma tabela com uf, ano, preliminar e caminho de cada arquivo."""
     linhas = []
     for nivel, pasta in (("mun", PASTA / base), ("uf", PASTA / base / "_uf")):
@@ -110,8 +120,8 @@ def listar_arquivos(base):
 
 
 @st.cache_data(ttl=3600, show_spinner="Carregando dados…")
-def carregar(base, nivel, uf, anos):
-    arqs = listar_arquivos(base)
+def carregar(base, nivel, uf, anos, versao):
+    arqs = listar_arquivos(base, versao)
     sel = arqs[(arqs.nivel == nivel) & arqs.ano.between(anos[0], anos[1])]
     if uf:
         sel = sel[sel.uf == uf]
@@ -124,7 +134,7 @@ def carregar(base, nivel, uf, anos):
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def municipios():
+def municipios(versao):
     arq = PASTA / "municipios.csv"
     if arq.exists():
         m = pd.read_csv(arq, dtype=str)
@@ -220,7 +230,8 @@ st.title("Painel de dados do SUS")
 st.markdown('<p class="sub">Estatísticas descritivas com dados públicos do DATASUS, '
             'por estado e município.</p>', unsafe_allow_html=True)
 
-metas = ler_metas()
+VERSAO = versao_dados()
+metas = ler_metas(VERSAO)
 opcoes = list(CATALOGO)
 rotulos = {b: CATALOGO[b] + ("" if b in metas else " · em breve") for b in opcoes}
 
@@ -233,7 +244,7 @@ if base not in metas:
     st.stop()
 
 meta = metas[base]
-arqs = listar_arquivos(base)
+arqs = listar_arquivos(base, VERSAO)
 if arqs.empty:
     st.warning("Os dados desta base ainda estão sendo coletados. Volte mais tarde.")
     st.stop()
@@ -252,13 +263,13 @@ local = c3.selectbox("Local", ["BR"] + ufs_disp,
                      format_func=lambda s: "Brasil (todos os estados)" if s == "BR"
                      else UFS[SIGLA_COD[s]][1])
 
-nomes_mun = municipios()
+nomes_mun = municipios(VERSAO)
 if local == "BR":
-    df = carregar(base, "uf", None, anos)
+    df = carregar(base, "uf", None, anos, VERSAO)
     c4.selectbox("Municípios", ["Escolha um estado para filtrar municípios"], disabled=True)
     titulo_local = "Brasil"
 else:
-    df_uf = carregar(base, "mun", local, anos)
+    df_uf = carregar(base, "mun", local, anos, VERSAO)
     cods = sorted(df_uf.cod_mun.unique(), key=lambda c: nome_local(c, nomes_mun))
     escolha = c4.multiselect("Municípios", cods, format_func=lambda c: nome_local(c, nomes_mun),
                              placeholder="Todos os municípios do estado")
