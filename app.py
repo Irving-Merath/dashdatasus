@@ -224,6 +224,14 @@ def valor_indicador(df, ind):
         if "categorias" in ind:
             sub = sub[sub.categoria.isin(ind["categorias"])]
         return int(sub.n.sum())
+    if ind["tipo"] == "razao":  # ex.: cobertura = doses ÷ população-alvo × 100
+        def soma(var, cat=None):
+            sub = df[df.variavel == var]
+            if cat is not None:
+                sub = sub[sub.categoria == cat]
+            return float(sub.n.sum())
+        den = soma(*ind["den"])
+        return soma(*ind["num"]) / den * ind.get("fator", 1) if den else np.nan
     return total(df)
 
 
@@ -235,6 +243,10 @@ def formatar_indicador(valor, ind, meta):
     if ind["tipo"] in ("media", "soma"):
         un = meta["variaveis"].get(ind["variavel"], {}).get("unidade", "")
         return fmt_unidade(valor, un)
+    if ind["tipo"] in ("razao", "contagem") and ind.get("unidade"):
+        if ind["unidade"] == "%":
+            return f"{fmt_dec(valor)}%"
+        return fmt_unidade(valor, ind["unidade"])
     return fmt_int(valor)
 
 
@@ -380,10 +392,14 @@ with aba2:
 
     if info["tipo"] == "categorica":
         sub = df[df.variavel == var]  # todos os anos (para a evolução)
-        dist = (df_res[df_res.variavel == var].groupby("categoria", observed=True).n.sum()
-                .reindex(info.get("ordem")).dropna().reset_index())
+        cont_cat = df_res[df_res.variavel == var].groupby("categoria", observed=True).n.sum()
+        if info.get("ordem"):
+            dist = cont_cat.reindex(info["ordem"]).dropna().reset_index()
+        else:  # sem ordem fixa (ex.: vacinas): as 15 maiores, da maior para a menor
+            dist = cont_cat[cont_cat > 0].sort_values(ascending=False).reset_index()
         dist.columns = ["Categoria", "n"]
-        dist["%"] = dist.n / dist.n.sum() * 100
+        dist["%"] = dist.n / cont_cat.sum() * 100
+        dist = dist.head(15)
         dist["rotulo"] = dist.apply(lambda r: f"{fmt_dec(r['%'])}% ({fmt_int(r.n)})", axis=1)
         fig = px.bar(dist, y="Categoria", x="%", orientation="h", text="rotulo",
                      color_discrete_sequence=[COR_PRINCIPAL])
@@ -396,7 +412,7 @@ with aba2:
             ev = sub.groupby(["ano", "categoria"], observed=True).n.sum().reset_index()
             ev["%"] = ev.n / ev.groupby("ano").n.transform("sum") * 100
             fig = px.bar(ev, x="ano", y="%", color="categoria",
-                         category_orders={"categoria": info.get("ordem")},
+                         category_orders={"categoria": info.get("ordem") or []},
                          color_discrete_sequence=CORES,
                          labels={"ano": "Ano", "categoria": ""})
             fig.update_xaxes(dtick=1)

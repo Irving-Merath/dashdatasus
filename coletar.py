@@ -1131,6 +1131,234 @@ def _cnes_leitos(caminho_dbf, uf):
     return somar_partes(partes)
 
 
+def somar_peso(df, coluna, peso, nome_var):
+    """Como contar(), mas soma uma quantidade (peso) em vez de contar linhas."""
+    t = df.groupby(["cod_mun", coluna], observed=True)[peso].sum().reset_index()
+    t.columns = ["cod_mun", "categoria", "n"]
+    t["variavel"] = nome_var
+    t["categoria"] = t["categoria"].astype(str)
+    return t[t.n != 0]
+
+
+# ----------------------------------------------------------------------
+# BASE: SIA (produção ambulatorial)
+# Arquivos PA, um por estado e mês; os estados grandes vêm em partes
+# (PASP2401A, PASP2401B...). Cada registro é um PROCEDIMENTO (não uma
+# pessoa) e traz a quantidade aprovada: os números são de procedimentos.
+# Volume muito grande: por enquanto só 2024.
+# ----------------------------------------------------------------------
+SIA_PASTA = "/dissemin/publicos/SIASUS/200801_/Dados"
+SIA_GRUPOS = {"01": "Promoção e prevenção", "02": "Finalidade diagnóstica (exames)",
+              "03": "Procedimentos clínicos", "04": "Procedimentos cirúrgicos",
+              "05": "Transplantes", "06": "Medicamentos",
+              "07": "Órteses, próteses e materiais", "08": "Ações complementares"}
+SIA_NAO_INF = "Não informado (registro consolidado)"
+
+SIA_META = {
+    "nome": "Atendimentos ambulatoriais",
+    "sigla": "SIA",
+    "descricao": "Procedimentos ambulatoriais aprovados pelo SUS, por município do "
+                 "estabelecimento e ano de processamento (Sistema de Informações "
+                 "Ambulatoriais). Os números são de procedimentos, não de pessoas; "
+                 "sexo, idade e diagnóstico só existem nos registros individualizados.",
+    "unidade": "procedimentos aprovados",
+    "variaveis": {
+        "grupo": {"rotulo": "Grupo de procedimento", "tipo": "categorica",
+                  "ordem": list(SIA_GRUPOS.values()) + ["Ignorado"]},
+        "complexidade": {"rotulo": "Complexidade", "tipo": "categorica",
+                         "ordem": ["Atenção básica", "Média complexidade",
+                                   "Alta complexidade", "Não se aplica"]},
+        "financiamento": {"rotulo": "Tipo de financiamento", "tipo": "categorica",
+                          "ordem": ["Atenção básica (PAB)", "Média e alta complexidade (MAC)",
+                                    "Estratégico (FAEC)", "Incentivo MAC",
+                                    "Assistência farmacêutica", "Vigilância em saúde",
+                                    "Ignorado"]},
+        "instrumento": {"rotulo": "Forma de registro", "tipo": "categorica",
+                        "ordem": ["BPA consolidado", "BPA individualizado",
+                                  "APAC (alta complexidade)", "RAAS (atenção psicossocial)",
+                                  "RAAS (atenção domiciliar)", "Ignorado"]},
+        "carater": {"rotulo": "Caráter do atendimento", "tipo": "categorica",
+                    "ordem": ["Eletivo", "Urgência", "Acidentes e lesões", SIA_NAO_INF]},
+        "tipo_estab": {"rotulo": "Tipo de estabelecimento", "tipo": "categorica",
+                       "ordem": CNES_ORDEM_TIPOS},
+        "sexo": {"rotulo": "Sexo", "tipo": "categorica",
+                 "ordem": ["Masculino", "Feminino", SIA_NAO_INF]},
+        "faixa_etaria": {"rotulo": "Faixa etária", "tipo": "categorica",
+                         "ordem": SIM_FAIXAS + [SIA_NAO_INF]},
+        "capitulo_cid": {"rotulo": "Diagnóstico (capítulo da CID-10)", "tipo": "categorica",
+                         "ordem": [c for c in ORDEM_CAPITULOS_SIH if c != "Ignorado"]
+                         + [SIA_NAO_INF]},
+        "mes": {"rotulo": "Mês de processamento", "tipo": "mes", "ordem": MESES},
+        "valor_grupo": {"rotulo": "Valor aprovado por grupo (R$)", "tipo": "categorica",
+                        "ordem": list(SIA_GRUPOS.values()) + ["Ignorado"]},
+    },
+    "indicadores": [
+        {"rotulo": "Valor aprovado", "tipo": "contagem", "variavel": "valor_grupo",
+         "unidade": "R$"},
+        {"rotulo": "Valor médio por procedimento", "tipo": "razao",
+         "num": ["valor_grupo"], "den": ["total"], "unidade": "R$"},
+        {"rotulo": "Exames (finalidade diagnóstica)", "tipo": "pct", "variavel": "grupo",
+         "categorias": ["Finalidade diagnóstica (exames)"]},
+        {"rotulo": "Alta complexidade", "tipo": "pct", "variavel": "complexidade",
+         "categorias": ["Alta complexidade"]},
+        {"rotulo": "Financiados pela atenção básica", "tipo": "pct",
+         "variavel": "financiamento", "categorias": ["Atenção básica (PAB)"]},
+    ],
+    "fonte": "Ministério da Saúde / DATASUS – SIA/SUS",
+}
+
+
+def sia_arquivos(uf, ano, ftp):
+    """Lista no FTP os arquivos do estado no ano (inclui as partes A, B, C...)."""
+    padrao = re.compile(rf"PA{uf}{ano % 100:02d}(0[1-9]|1[0-2])[A-Z]?\.DBC")
+    return sorted(n for n in ftp.listar(SIA_PASTA) if padrao.fullmatch(n))
+
+
+def sia_agregar(caminho_dbf, uf):
+    cols = ["PA_UFMUN", "PA_PROC_ID", "PA_NIVCPL", "PA_TPFIN", "PA_DOCORIG", "PA_CATEND",
+            "PA_TPUPS", "PA_SEXO", "PA_IDADE", "PA_CIDPRI", "PA_MVM", "PA_QTDAPR",
+            "PA_VALAPR"]
+    partes = []
+    for b in ler_dbf(caminho_dbf, cols):
+        qtd = pd.to_numeric(b["PA_QTDAPR"], errors="coerce").fillna(0)
+        valor = pd.to_numeric(b["PA_VALAPR"], errors="coerce").fillna(0)
+        manter = (qtd > 0) | (valor > 0)
+        b, qtd, valor = b[manter], qtd[manter], valor[manter]
+        mun = b["PA_UFMUN"].str[:6]
+        df = pd.DataFrame({"cod_mun": mun.where(mun.str.fullmatch(r"\d{6}"),
+                                                COD_UF[uf] + "0000"),
+                           "qtd": qtd, "valor": valor})
+        idade = pd.to_numeric(b["PA_IDADE"], errors="coerce")
+        idade = idade.where(idade <= 125)
+        cid3 = b["PA_CIDPRI"].str.upper().str[:3]
+        mes = pd.to_numeric(b["PA_MVM"].str[4:6], errors="coerce")
+
+        df["total"] = "Total"
+        df["grupo"] = mapear(b["PA_PROC_ID"].str[:2], SIA_GRUPOS)
+        df["complexidade"] = mapear(b["PA_NIVCPL"], {
+            "1": "Atenção básica", "2": "Média complexidade", "3": "Alta complexidade"},
+            padrao="Não se aplica")
+        df["financiamento"] = mapear(b["PA_TPFIN"].str.zfill(2), {
+            "01": "Atenção básica (PAB)", "02": "Assistência farmacêutica",
+            "04": "Estratégico (FAEC)", "05": "Incentivo MAC",
+            "06": "Média e alta complexidade (MAC)", "07": "Vigilância em saúde"})
+        df["instrumento"] = mapear(b["PA_DOCORIG"], {
+            "C": "BPA consolidado", "I": "BPA individualizado",
+            "P": "APAC (alta complexidade)", "S": "APAC (alta complexidade)",
+            "B": "RAAS (atenção psicossocial)", "A": "RAAS (atenção domiciliar)"})
+        df["carater"] = mapear(b["PA_CATEND"].str.zfill(2), {
+            "01": "Eletivo", "02": "Urgência", "03": "Acidentes e lesões",
+            "04": "Acidentes e lesões", "05": "Acidentes e lesões",
+            "06": "Acidentes e lesões"}, padrao=SIA_NAO_INF)
+        df["tipo_estab"] = mapear(b["PA_TPUPS"].str.zfill(2), CNES_TIPOS, padrao="Outros")
+        df["sexo"] = mapear(b["PA_SEXO"], {"M": "Masculino", "F": "Feminino"},
+                            padrao=SIA_NAO_INF)
+        df["faixa_etaria"] = faixas(idade, [0, 1, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 200],
+                                    SIM_FAIXAS, padrao=SIA_NAO_INF)
+        df["capitulo_cid"] = mapear(cid3, CAPITULOS_CID10_SIH, padrao=SIA_NAO_INF)
+        df["mes"] = mes.map(lambda m: MESES[int(m) - 1] if m == m and 1 <= m <= 12 else None)
+
+        for var in ["total", "grupo", "complexidade", "financiamento", "instrumento",
+                    "carater", "tipo_estab", "sexo", "faixa_etaria", "capitulo_cid", "mes"]:
+            partes.append(somar_peso(df.dropna(subset=[var]), var, "qtd", var))
+        partes.append(somar_peso(df, "grupo", "valor", "valor_grupo"))
+    return somar_partes(partes)
+
+
+# ----------------------------------------------------------------------
+# BASE: PNI (vacinação)
+# Arquivos por estado e ano, já resumidos por município (DBF, sem compressão):
+#   DPNI = doses aplicadas por vacina e mês
+#   CPNI = doses e população-alvo usadas no cálculo da cobertura vacinal
+# Só vai até 2018: em 2019 o sistema mudou e os dados do FTP ficaram
+# incompletos (os anos seguintes não estão no FTP).
+# ----------------------------------------------------------------------
+PNI_PASTA = "/dissemin/publicos/PNI/DADOS"
+# códigos de cobertura ("totais" de vacinas equivalentes, estáveis de 2010 a 2018)
+PNI_COBERTURA = {"072": "BCG", "073": "Hepatite B", "074": "Poliomielite",
+                 "075": "Penta / Tetra (DTP+Hib)", "061": "Rotavírus",
+                 "053": "Meningocócica C", "012": "Pneumocócica",
+                 "021": "Tríplice viral (1ª dose)", "098": "Tríplice viral (2ª dose)",
+                 "096": "Hepatite A", "006": "Febre amarela"}
+_pni_nomes_doses = {}
+
+
+def pni_nomes_vacinas(ftp):
+    """Lê do FTP a tabela do Tabnet que traduz o código da vacina (IMUNO.CNV)."""
+    if _pni_nomes_doses:
+        return _pni_nomes_doses
+    import io
+    buf = io.BytesIO()
+    ftp._garantir()
+    ftp.ftp.retrbinary("RETR /dissemin/publicos/PNI/AUXILIARES/IMUNO.CNV", buf.write)
+    for linha in buf.getvalue().decode("latin-1").splitlines()[1:]:
+        m = re.match(r"^\s*\d+\s+(.+?)\s{2,}([\w,]+)\s*$", linha)
+        if m:
+            nome = re.sub(r"\s*\([^)]*\)\s*$", "", m.group(1)).strip()
+            for cod in m.group(2).split(","):
+                _pni_nomes_doses[cod.strip().zfill(2)] = nome
+    return _pni_nomes_doses
+
+
+PNI_META = {
+    "nome": "Vacinação",
+    "sigla": "PNI",
+    "descricao": "Doses aplicadas e cobertura vacinal por município de aplicação "
+                 "(Programa Nacional de Imunizações). Cobertura = doses do esquema "
+                 "÷ população-alvo. Dados do FTP do DATASUS disponíveis até 2018.",
+    "unidade": "doses aplicadas",
+    "variaveis": {
+        "vacina": {"rotulo": "Doses aplicadas por vacina (15 mais aplicadas)",
+                   "tipo": "categorica", "ordem": None},
+        "mes": {"rotulo": "Mês de aplicação", "tipo": "mes", "ordem": MESES},
+        "cob_doses": {"rotulo": "Doses para cobertura", "tipo": "auxiliar"},
+        "cob_pop": {"rotulo": "População-alvo", "tipo": "auxiliar"},
+    },
+    "indicadores": [
+        {"rotulo": f"Cobertura {nome}", "tipo": "razao", "unidade": "%", "fator": 100,
+         "num": ["cob_doses", nome], "den": ["cob_pop", nome]}
+        for nome in ["BCG", "Poliomielite", "Penta / Tetra (DTP+Hib)",
+                     "Tríplice viral (1ª dose)", "Hepatite B", "Rotavírus",
+                     "Meningocócica C", "Pneumocócica"]
+    ],
+    "fonte": "Ministério da Saúde / DATASUS – SI-PNI",
+}
+
+
+def pni_arquivos(uf, ano):
+    return [f"DPNI{uf}{ano % 100:02d}.DBF", f"CPNI{uf}{ano % 100:02d}.DBF"]
+
+
+def _numero(serie):
+    return pd.to_numeric(serie.str.replace(",", ".", regex=False), errors="coerce").fillna(0)
+
+
+def pni_agregar(caminho_dbf, uf):
+    partes = []
+    cobertura = Path(caminho_dbf).stem.upper().startswith("CPNI")
+    cols = ["MUNIC", "IMUNO", "QT_DOSE"] + (["POP"] if cobertura else ["MES"])
+    for b in ler_dbf(caminho_dbf, cols):
+        mun = b["MUNIC"].str[:6]
+        df = pd.DataFrame({"cod_mun": mun.where(mun.str.fullmatch(r"\d{6}"),
+                                                COD_UF[uf] + "0000"),
+                           "doses": _numero(b["QT_DOSE"])})
+        if cobertura:
+            df["vac"] = b["IMUNO"].str.zfill(3).map(PNI_COBERTURA)
+            df["pop"] = _numero(b["POP"])
+            df = df.dropna(subset=["vac"])
+            partes.append(somar_peso(df, "vac", "doses", "cob_doses"))
+            partes.append(somar_peso(df, "vac", "pop", "cob_pop"))
+        else:
+            df["total"] = "Total"
+            df["vacina"] = b["IMUNO"].str.zfill(2).map(_pni_nomes_doses).fillna("Outras")
+            mes = pd.to_numeric(b["MES"], errors="coerce")
+            df["mes"] = mes.map(lambda m: MESES[int(m) - 1] if m == m and 1 <= m <= 12
+                                else None)
+            for var in ["total", "vacina", "mes"]:
+                partes.append(somar_peso(df.dropna(subset=[var]), var, "doses", var))
+    return somar_partes(partes)
+
+
 # ----------------------------------------------------------------------
 # CATÁLOGO DE BASES
 # Bases com "ativa": False aparecem no dashboard como "em breve".
@@ -1151,8 +1379,12 @@ BASES = {
     "cnes": {"ativa": True, "meta": CNES_META,
              "pastas": CNES_PASTAS_ST + CNES_PASTAS_LT,
              "arquivos": cnes_arquivos, "agregar": cnes_agregar},
-    "sia": {"ativa": False, "meta": {"nome": "Atendimentos ambulatoriais", "sigla": "SIA"}},
-    "pni": {"ativa": False, "meta": {"nome": "Vacinação", "sigla": "PNI"}},
+    "sia": {"ativa": True, "meta": SIA_META, "pastas": [(SIA_PASTA, "final")],
+            "ano_inicial": 2024, "lista_no_ftp": True,
+            "arquivos": sia_arquivos, "agregar": sia_agregar},
+    "pni": {"ativa": True, "meta": PNI_META, "pastas": [(PNI_PASTA, "final")],
+            "ano_final": 2018, "preparar": pni_nomes_vacinas,
+            "arquivos": pni_arquivos, "agregar": pni_agregar},
 }
 
 
@@ -1182,11 +1414,28 @@ def coletar(base, uf):
     falhas, novos = [], 0
     tmp = Path(tempfile.mkdtemp())
     nacional = cfg.get("escopo", "uf") == "nacional"
+    if cfg.get("preparar"):
+        cfg["preparar"](ftp)  # ex.: PNI baixa a tabela de nomes das vacinas
 
-    for ano in range(cfg.get("ano_inicial", ANO_INICIAL), ANO_FINAL + 1):
+    for ano in range(cfg.get("ano_inicial", ANO_INICIAL), cfg.get("ano_final", ANO_FINAL) + 1):
         # Um ano pode ter um arquivo (SINASC, SIM) ou vários (SIH: um por mês);
         # todos são somados num único resumo do ano.
-        nomes = cfg["arquivos"](uf, ano)
+        if cfg.get("lista_no_ftp"):  # SIA: os nomes (com partes A, B...) vêm do FTP
+            iniciar_cronometro()
+            try:
+                nomes = cfg["arquivos"](uf, ano, ftp)
+            except TempoEsgotado:
+                aviso(f"{base} {uf} {ano}: o FTP não respondeu ao listar os arquivos.")
+                ftp.ftp = None
+                falhas.append(f"{base} {uf} {ano}")
+                continue
+            finally:
+                parar_cronometro()
+            if not nomes:
+                log(f"{base.upper()} {uf} {ano}: nenhum arquivo no DATASUS.")
+                continue
+        else:
+            nomes = cfg["arquivos"](uf, ano)
         rotulo = nomes[0] if len(nomes) == 1 else f"{base.upper()} {uf} {ano}"
         achados, faltando = [], []
         iniciar_cronometro()
@@ -1234,7 +1483,10 @@ def coletar(base, uf):
                     falhas.append(nome)
                     falhou = True
                     break
-                dbc_para_dbf(dbc, dbf)
+                if real.upper().endswith(".DBF"):  # PNI: já vem sem compressão
+                    dbf = dbc
+                else:
+                    dbc_para_dbf(dbc, dbf)
                 resumos.append(cfg["agregar"](dbf, uf))
             except TempoEsgotado:
                 aviso(f"{nome}: passou de {LIMITE_POR_ARQUIVO // 60} minutos (conexão travada?). "
@@ -1257,7 +1509,9 @@ def coletar(base, uf):
 
         res = resumos[0] if len(resumos) == 1 else somar_partes(resumos)
         res.insert(0, "ano", ano)
-        res["n"] = res["n"].astype("int32")
+        # valores em reais do SIA passam de 2 bilhões: aí é preciso int64
+        res["n"] = res["n"].round()
+        res["n"] = res["n"].astype("int64" if res["n"].abs().max() > 2e9 else "int32")
         sufixo = "_prelim" if preliminar else ""
         # base nacional: um arquivo por estado (pelos 2 primeiros dígitos do município)
         if nacional:
