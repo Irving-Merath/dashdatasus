@@ -219,6 +219,11 @@ def valor_indicador(df, ind):
     if ind["tipo"] == "soma":
         cont = valores_numericos(df, ind["variavel"])
         return float((cont.index.to_numpy(float) * cont.to_numpy(float)).sum())
+    if ind["tipo"] == "contagem":  # soma das contagens (ex.: nº de leitos, de hospitais)
+        sub = df[df.variavel == ind["variavel"]]
+        if "categorias" in ind:
+            sub = sub[sub.categoria.isin(ind["categorias"])]
+        return int(sub.n.sum())
     return total(df)
 
 
@@ -317,17 +322,30 @@ if df.empty or total(df) == 0:
     st.info("Não há registros para essa combinação de filtros.")
     st.stop()
 
+# Bases do tipo "foto anual" (CNES) são estoques: somar anos não faz sentido.
+# Os quadros, as distribuições e a comparação usam o último ano do período;
+# o gráfico de evolução e a tabela continuam mostrando ano a ano.
+if meta.get("foto_anual"):
+    ultimo_ano = int(df.ano.max())
+    df_res = df[df.ano == ultimo_ano]
+    periodo_res = f"dezembro de {ultimo_ano}"
+else:
+    df_res, periodo_res = df, periodo_txt
+
 aba1, aba2, aba3, aba4 = st.tabs(["Visão geral", "Distribuições", "Comparar locais", "Tabela"])
 
 # ----------------------------------------------------------------------
 # Aba 1 – Visão geral
 # ----------------------------------------------------------------------
 with aba1:
-    st.subheader(f"{nome_tema} · {titulo_local} · {periodo_txt}")
-    cards = [f'<div class="kpi destaque"><div class="valor">{fmt_int(total(df))}</div>'
+    st.subheader(f"{nome_tema} · {titulo_local} · {periodo_res}")
+    if meta.get("foto_anual") and anos[0] != anos[1]:
+        st.caption(f"Os números mostram a situação em {periodo_res}, o último ano do período "
+                   "escolhido. A evolução ano a ano está no gráfico abaixo.")
+    cards = [f'<div class="kpi destaque"><div class="valor">{fmt_int(total(df_res))}</div>'
              f'<div class="rotulo">{meta["unidade"].capitalize()}</div></div>']
     for ind in indicadores:
-        v = formatar_indicador(valor_indicador(df, ind), ind, meta)
+        v = formatar_indicador(valor_indicador(df_res, ind), ind, meta)
         cards.append(f'<div class="kpi"><div class="valor">{v}</div>'
                      f'<div class="rotulo">{ind["rotulo"]}</div></div>')
     st.markdown(f'<div class="kpis">{"".join(cards)}</div>', unsafe_allow_html=True)
@@ -361,8 +379,8 @@ with aba2:
     info = variaveis[var]
 
     if info["tipo"] == "categorica":
-        sub = df[df.variavel == var]
-        dist = (sub.groupby("categoria", observed=True).n.sum()
+        sub = df[df.variavel == var]  # todos os anos (para a evolução)
+        dist = (df_res[df_res.variavel == var].groupby("categoria", observed=True).n.sum()
                 .reindex(info.get("ordem")).dropna().reset_index())
         dist.columns = ["Categoria", "n"]
         dist["%"] = dist.n / dist.n.sum() * 100
@@ -386,7 +404,7 @@ with aba2:
         st.caption("Percentuais calculados sobre o total, incluindo registros sem "
                    "informação (\"Ignorado\").")
     else:
-        cont = valores_numericos(df, var)
+        cont = valores_numericos(df_res, var)
         r = resumo_numerico(cont)
         un = info.get("unidade", "")
         if r is None:
@@ -416,7 +434,7 @@ with aba3:
     inds = [{"rotulo": meta["unidade"].capitalize(), "tipo": "total"}] + indicadores
     ind = st.selectbox("Indicador", inds, format_func=lambda i: i["rotulo"])
     grupos = []
-    for cod, g in df.groupby("cod_mun", observed=True):
+    for cod, g in df_res.groupby("cod_mun", observed=True):
         if g.empty:
             continue
         grupos.append({"Local": nome_local(cod, nomes_mun), "valor": valor_indicador(g, ind),

@@ -982,6 +982,156 @@ def sinan_agregar(caminho_dbf, uf):
 
 
 # ----------------------------------------------------------------------
+# BASE: CNES (estabelecimentos e leitos)
+# "Foto" de dezembro de cada ano, por estado: arquivo ST (estabelecimentos)
+# + arquivo LT (leitos). Nas variáveis de leitos, a contagem é de LEITOS
+# (e não de estabelecimentos).
+# ----------------------------------------------------------------------
+HOSPITAIS = ["Hospital geral", "Hospital especializado", "Unidade mista", "Hospital-dia"]
+CNES_TIPOS = {
+    **{c: "UBS / posto / centro de saúde" for c in ["01", "02", "71", "72", "74"]},
+    "05": "Hospital geral", "07": "Hospital especializado", "15": "Unidade mista",
+    "62": "Hospital-dia",
+    **{c: "Pronto-socorro / pronto atendimento" for c in ["20", "21", "73"]},
+    "22": "Consultório isolado",
+    **{c: "Clínica / centro de especialidade / policlínica" for c in ["04", "36"]},
+    "39": "Apoio diagnóstico e terapia (exames)",
+    "70": "CAPS (saúde mental)",
+    **{c: "Unidade móvel" for c in ["32", "40", "42"]},
+    "43": "Farmácia",
+    **{c: "Vigilância, regulação e gestão"
+       for c in ["50", "64", "67", "68", "76", "80", "81", "82", "84", "85"]},
+}
+CNES_ORDEM_TIPOS = ["Consultório isolado", "Clínica / centro de especialidade / policlínica",
+                    "UBS / posto / centro de saúde", "Apoio diagnóstico e terapia (exames)",
+                    "Hospital geral", "Hospital especializado", "Unidade mista",
+                    "Hospital-dia", "Pronto-socorro / pronto atendimento",
+                    "CAPS (saúde mental)", "Farmácia", "Unidade móvel",
+                    "Vigilância, regulação e gestão", "Outros"]
+# códigos antigos de NATUREZA (até ~2015), antes do NAT_JUR de 4 dígitos
+CNES_NATUREZA_ANTIGA = {
+    **{c: "Administração pública" for c in ["01", "02", "03", "04", "05", "06", "12"]},
+    **{c: "Entidade empresarial" for c in ["07", "09"]},
+    **{c: "Sem fins lucrativos" for c in ["08", "10", "11", "13"]},
+}
+CNES_NATUREZA_NOVA = {"1": "Administração pública", "2": "Entidade empresarial",
+                      "3": "Sem fins lucrativos", "4": "Pessoa física"}
+LEITO_TIPOS = {"1": "Cirúrgico", "2": "Clínico", "3": "Complementar (UTI e outros)",
+               "4": "Obstétrico", "5": "Pediátrico", "6": "Outras especialidades",
+               "7": "Hospital-dia"}
+LEITO_UTI = {f"{c:02d}" for c in range(74, 87)} | {"51", "52"}  # UTIs (inclui UTI COVID)
+SERVICOS = {"urgencia": ("URGEMERG", "Urgência e emergência"),
+            "ambulatorio": ("ATENDAMB", "Atendimento ambulatorial"),
+            "internacao": ("ATENDHOS", "Internação"),
+            "centro_cirurgico": ("CENTRCIR", "Centro cirúrgico"),
+            "centro_obstetrico": ("CENTROBS", "Centro obstétrico"),
+            "neonatal": ("CENTRNEO", "Unidade neonatal")}
+SIM_NAO_CNES = ["Sim", "Não"]
+
+CNES_META = {
+    "nome": "Estabelecimentos de saúde",
+    "sigla": "CNES",
+    "descricao": "Situação em dezembro de cada ano (Cadastro Nacional de Estabelecimentos "
+                 "de Saúde). Nas variáveis de leitos, os números são de leitos.",
+    "unidade": "estabelecimentos",
+    "variaveis": {
+        "tipo_unidade": {"rotulo": "Tipo de estabelecimento", "tipo": "categorica",
+                         "ordem": CNES_ORDEM_TIPOS},
+        "natureza": {"rotulo": "Natureza jurídica", "tipo": "categorica",
+                     "ordem": ["Administração pública", "Entidade empresarial",
+                               "Sem fins lucrativos", "Pessoa física", "Ignorado"]},
+        "vinculo_sus": {"rotulo": "Atende o SUS", "tipo": "categorica",
+                        "ordem": SIM_NAO_CNES},
+        "gestao": {"rotulo": "Gestão", "tipo": "categorica",
+                   "ordem": ["Municipal", "Estadual", "Dupla", "Ignorado"]},
+        **{v: {"rotulo": rot, "tipo": "categorica", "ordem": SIM_NAO_CNES}
+           for v, (_, rot) in SERVICOS.items()},
+        "leitos_tipo": {"rotulo": "Leitos por tipo (nº de leitos)", "tipo": "categorica",
+                        "ordem": list(LEITO_TIPOS.values())},
+        "leitos_sus": {"rotulo": "Leitos SUS e não SUS (nº de leitos)", "tipo": "categorica",
+                       "ordem": ["SUS", "Não SUS"]},
+        "leitos_uti": {"rotulo": "Leitos de UTI (nº de leitos)", "tipo": "categorica",
+                       "ordem": ["UTI", "Demais leitos"]},
+    },
+    "indicadores": [
+        {"rotulo": "Atendem o SUS", "tipo": "pct", "variavel": "vinculo_sus",
+         "categorias": ["Sim"]},
+        {"rotulo": "Públicos", "tipo": "pct", "variavel": "natureza",
+         "categorias": ["Administração pública"]},
+        {"rotulo": "Hospitais", "tipo": "contagem", "variavel": "tipo_unidade",
+         "categorias": HOSPITAIS},
+        {"rotulo": "Com urgência e emergência", "tipo": "contagem", "variavel": "urgencia",
+         "categorias": ["Sim"]},
+        {"rotulo": "Leitos existentes", "tipo": "contagem", "variavel": "leitos_sus"},
+        {"rotulo": "Leitos do SUS", "tipo": "pct", "variavel": "leitos_sus",
+         "categorias": ["SUS"]},
+        {"rotulo": "Leitos de UTI", "tipo": "contagem", "variavel": "leitos_uti",
+         "categorias": ["UTI"]},
+    ],
+    "foto_anual": True,  # estoque: não se somam anos; mostra o último ano do período
+    "fonte": "Ministério da Saúde / DATASUS – CNES",
+}
+
+CNES_PASTAS_ST = [("/dissemin/publicos/CNES/200508_/Dados/ST", "final")]
+CNES_PASTAS_LT = [("/dissemin/publicos/CNES/200508_/Dados/LT", "final")]
+
+
+def cnes_arquivos(uf, ano):
+    return [f"ST{uf}{ano % 100:02d}12.DBC", f"LT{uf}{ano % 100:02d}12.DBC"]
+
+
+def _cnes_mun(b, uf):
+    mun = b["CODUFMUN"].str[:6]
+    return mun.where(mun.str.fullmatch(r"\d{6}"), COD_UF[uf] + "0000")
+
+
+def cnes_agregar(caminho_dbf, uf):
+    if Path(caminho_dbf).stem.upper().startswith("LT"):
+        return _cnes_leitos(caminho_dbf, uf)
+    cols = ["CODUFMUN", "TP_UNID", "NAT_JUR", "NATUREZA", "PF_PJ", "VINC_SUS", "TPGESTAO"] + [
+        c for c, _ in SERVICOS.values()]
+    partes = []
+    for b in ler_dbf(caminho_dbf, cols):
+        df = pd.DataFrame({"cod_mun": _cnes_mun(b, uf)})
+        df["total"] = "Total"
+        df["tipo_unidade"] = mapear(b["TP_UNID"].str.zfill(2), CNES_TIPOS, padrao="Outros")
+        nova = b["NAT_JUR"].str[:1].map(CNES_NATUREZA_NOVA)
+        antiga = b["NATUREZA"].str.zfill(2).map(CNES_NATUREZA_ANTIGA)
+        df["natureza"] = nova.fillna(antiga).fillna("Ignorado")
+        # PF_PJ existe em todos os anos; os códigos antigos não tinham "pessoa física"
+        df.loc[b["PF_PJ"] == "1", "natureza"] = "Pessoa física"
+        df["vinculo_sus"] = np.where(b["VINC_SUS"] == "1", "Sim", "Não")
+        df["gestao"] = mapear(b["TPGESTAO"], {"M": "Municipal", "E": "Estadual",
+                                              "D": "Dupla"})
+        for var, (campo, _) in SERVICOS.items():
+            df[var] = np.where(b[campo] == "1", "Sim", "Não")
+        for var in ["total", "tipo_unidade", "natureza", "vinculo_sus", "gestao",
+                    *SERVICOS]:
+            partes.append(contar(df[["cod_mun", var]], var, var))
+    return somar_partes(partes)
+
+
+def _cnes_leitos(caminho_dbf, uf):
+    """Soma os LEITOS (QT_EXIST, QT_SUS, QT_NSUS) por município e tipo."""
+    partes = []
+    for b in ler_dbf(caminho_dbf, ["CODUFMUN", "TP_LEITO", "CODLEITO",
+                                   "QT_EXIST", "QT_SUS", "QT_NSUS"]):
+        cod_mun = _cnes_mun(b, uf)
+        exist = pd.to_numeric(b["QT_EXIST"], errors="coerce").fillna(0)
+        sus = pd.to_numeric(b["QT_SUS"], errors="coerce").fillna(0)
+        nsus = pd.to_numeric(b["QT_NSUS"], errors="coerce").fillna(0)
+        tipo = mapear(b["TP_LEITO"], LEITO_TIPOS, padrao="Outras especialidades")
+        uti = np.where(b["CODLEITO"].str.zfill(2).isin(LEITO_UTI), "UTI", "Demais leitos")
+        for var, cat, qtd in (("leitos_tipo", tipo, exist), ("leitos_uti", uti, exist),
+                              ("leitos_sus", "SUS", sus), ("leitos_sus", "Não SUS", nsus)):
+            t = (pd.DataFrame({"cod_mun": cod_mun, "categoria": cat, "n": qtd})
+                   .groupby(["cod_mun", "categoria"]).n.sum().reset_index())
+            t["variavel"] = var
+            partes.append(t[t.n > 0])
+    return somar_partes(partes)
+
+
+# ----------------------------------------------------------------------
 # CATÁLOGO DE BASES
 # Bases com "ativa": False aparecem no dashboard como "em breve".
 # Elas serão ativadas uma por vez, nas próximas etapas.
@@ -998,7 +1148,9 @@ BASES = {
     "sinan": {"ativa": True, "escopo": "nacional", "faltando_ok": True,
               "meta": SINAN_META, "pastas": SINAN_PASTAS,
               "arquivos": sinan_arquivos, "agregar": sinan_agregar},
-    "cnes": {"ativa": False, "meta": {"nome": "Estabelecimentos de saúde", "sigla": "CNES"}},
+    "cnes": {"ativa": True, "meta": CNES_META,
+             "pastas": CNES_PASTAS_ST + CNES_PASTAS_LT,
+             "arquivos": cnes_arquivos, "agregar": cnes_agregar},
     "sia": {"ativa": False, "meta": {"nome": "Atendimentos ambulatoriais", "sigla": "SIA"}},
     "pni": {"ativa": False, "meta": {"nome": "Vacinação", "sigla": "PNI"}},
 }
