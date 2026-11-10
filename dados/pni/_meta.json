@@ -1,0 +1,155 @@
+{
+ "nome": "Vacinação",
+ "sigla": "PNI",
+ "descricao": "Doses aplicadas e cobertura vacinal por município de aplicação (Programa Nacional de Imunizações). Cobertura = doses do esquema ÷ população-alvo. Dados do FTP do DATASUS disponíveis até 2018.",
+ "unidade": "doses aplicadas",
+ "variaveis": {
+  "vacina": {
+   "rotulo": "Doses aplicadas por vacina (15 mais aplicadas)",
+   "tipo": "categorica",
+   "ordem": null
+  },
+  "mes": {
+   "rotulo": "Mês de aplicação",
+   "tipo": "mes",
+   "ordem": [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez"
+   ]
+  },
+  "cob_doses": {
+   "rotulo": "Doses para cobertura",
+   "tipo": "auxiliar"
+  },
+  "cob_pop": {
+   "rotulo": "População-alvo",
+   "tipo": "auxiliar"
+  }
+ },
+ "indicadores": [
+  {
+   "rotulo": "Cobertura BCG",
+   "tipo": "razao",
+   "unidade": "%",
+   "fator": 100,
+   "num": [
+    "cob_doses",
+    "BCG"
+   ],
+   "den": [
+    "cob_pop",
+    "BCG"
+   ]
+  },
+  {
+   "rotulo": "Cobertura Poliomielite",
+   "tipo": "razao",
+   "unidade": "%",
+   "fator": 100,
+   "num": [
+    "cob_doses",
+    "Poliomielite"
+   ],
+   "den": [
+    "cob_pop",
+    "Poliomielite"
+   ]
+  },
+  {
+   "rotulo": "Cobertura Penta / Tetra (DTP+Hib)",
+   "tipo": "razao",
+   "unidade": "%",
+   "fator": 100,
+   "num": [
+    "cob_doses",
+    "Penta / Tetra (DTP+Hib)"
+   ],
+   "den": [
+    "cob_pop",
+    "Penta / Tetra (DTP+Hib)"
+   ]
+  },
+  {
+   "rotulo": "Cobertura Tríplice viral (1ª dose)",
+   "tipo": "razao",
+   "unidade": "%",
+   "fator": 100,
+   "num": [
+    "cob_doses",
+    "Tríplice viral (1ª dose)"
+   ],
+   "den": [
+    "cob_pop",
+    "Tríplice viral (1ª dose)"
+   ]
+  },
+  {
+   "rotulo": "Cobertura Hepatite B",
+   "tipo": "razao",
+   "unidade": "%",
+   "fator": 100,
+   "num": [
+    "cob_doses",
+    "Hepatite B"
+   ],
+   "den": [
+    "cob_pop",
+    "Hepatite B"
+   ]
+  },
+  {
+   "rotulo": "Cobertura Rotavírus",
+   "tipo": "razao",
+   "unidade": "%",
+   "fator": 100,
+   "num": [
+    "cob_doses",
+    "Rotavírus"
+   ],
+   "den": [
+    "cob_pop",
+    "Rotavírus"
+   ]
+  },
+  {
+   "rotulo": "Cobertura Meningocócica C",
+   "tipo": "razao",
+   "unidade": "%",
+   "fator": 100,
+   "num": [
+    "cob_doses",
+    "Meningocócica C"
+   ],
+   "den": [
+    "cob_pop",
+    "Meningocócica C"
+   ]
+  },
+  {
+   "rotulo": "Cobertura Pneumocócica",
+   "tipo": "razao",
+   "unidade": "%",
+   "fator": 100,
+   "num": [
+    "cob_doses",
+    "Pneumocócica"
+   ],
+   "den": [
+    "cob_pop",
+    "Pneumocócica"
+   ]
+  }
+ ],
+ "fonte": "Ministério da Saúde / DATASUS – SI-PNI",
+ "atualizado_em": "2026-11-10"
+}
