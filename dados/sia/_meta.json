@@ -1,0 +1,223 @@
+{
+ "nome": "Atendimentos ambulatoriais",
+ "sigla": "SIA",
+ "descricao": "Procedimentos ambulatoriais aprovados pelo SUS, por município do estabelecimento e ano de processamento (Sistema de Informações Ambulatoriais). Os números são de procedimentos, não de pessoas; sexo, idade e diagnóstico só existem nos registros individualizados.",
+ "unidade": "procedimentos aprovados",
+ "variaveis": {
+  "grupo": {
+   "rotulo": "Grupo de procedimento",
+   "tipo": "categorica",
+   "ordem": [
+    "Promoção e prevenção",
+    "Finalidade diagnóstica (exames)",
+    "Procedimentos clínicos",
+    "Procedimentos cirúrgicos",
+    "Transplantes",
+    "Medicamentos",
+    "Órteses, próteses e materiais",
+    "Ações complementares",
+    "Ignorado"
+   ]
+  },
+  "complexidade": {
+   "rotulo": "Complexidade",
+   "tipo": "categorica",
+   "ordem": [
+    "Atenção básica",
+    "Média complexidade",
+    "Alta complexidade",
+    "Não se aplica"
+   ]
+  },
+  "financiamento": {
+   "rotulo": "Tipo de financiamento",
+   "tipo": "categorica",
+   "ordem": [
+    "Atenção básica (PAB)",
+    "Média e alta complexidade (MAC)",
+    "Estratégico (FAEC)",
+    "Incentivo MAC",
+    "Assistência farmacêutica",
+    "Vigilância em saúde",
+    "Ignorado"
+   ]
+  },
+  "instrumento": {
+   "rotulo": "Forma de registro",
+   "tipo": "categorica",
+   "ordem": [
+    "BPA consolidado",
+    "BPA individualizado",
+    "APAC (alta complexidade)",
+    "RAAS (atenção psicossocial)",
+    "RAAS (atenção domiciliar)",
+    "Ignorado"
+   ]
+  },
+  "carater": {
+   "rotulo": "Caráter do atendimento",
+   "tipo": "categorica",
+   "ordem": [
+    "Eletivo",
+    "Urgência",
+    "Acidentes e lesões",
+    "Não informado (registro consolidado)"
+   ]
+  },
+  "tipo_estab": {
+   "rotulo": "Tipo de estabelecimento",
+   "tipo": "categorica",
+   "ordem": [
+    "Consultório isolado",
+    "Clínica / centro de especialidade / policlínica",
+    "UBS / posto / centro de saúde",
+    "Apoio diagnóstico e terapia (exames)",
+    "Hospital geral",
+    "Hospital especializado",
+    "Unidade mista",
+    "Hospital-dia",
+    "Pronto-socorro / pronto atendimento",
+    "CAPS (saúde mental)",
+    "Farmácia",
+    "Unidade móvel",
+    "Vigilância, regulação e gestão",
+    "Outros"
+   ]
+  },
+  "sexo": {
+   "rotulo": "Sexo",
+   "tipo": "categorica",
+   "ordem": [
+    "Masculino",
+    "Feminino",
+    "Não informado (registro consolidado)"
+   ]
+  },
+  "faixa_etaria": {
+   "rotulo": "Faixa etária",
+   "tipo": "categorica",
+   "ordem": [
+    "Menor de 1 ano",
+    "1 a 4",
+    "5 a 9",
+    "10 a 14",
+    "15 a 19",
+    "20 a 29",
+    "30 a 39",
+    "40 a 49",
+    "50 a 59",
+    "60 a 69",
+    "70 a 79",
+    "80 ou mais",
+    "Não informado (registro consolidado)"
+   ]
+  },
+  "capitulo_cid": {
+   "rotulo": "Diagnóstico (capítulo da CID-10)",
+   "tipo": "categorica",
+   "ordem": [
+    "Infecciosas e parasitárias",
+    "Neoplasias (tumores)",
+    "Sangue e sistema imunitário",
+    "Endócrinas, nutricionais e metabólicas",
+    "Transtornos mentais e comportamentais",
+    "Sistema nervoso",
+    "Olho e anexos",
+    "Ouvido",
+    "Aparelho circulatório",
+    "Aparelho respiratório",
+    "Aparelho digestivo",
+    "Pele e tecido subcutâneo",
+    "Osteomuscular e tecido conjuntivo",
+    "Aparelho geniturinário",
+    "Gravidez, parto e puerpério",
+    "Afecções perinatais",
+    "Malformações congênitas",
+    "Causas mal definidas",
+    "Códigos especiais (inclui COVID-19)",
+    "Causas externas",
+    "Lesões, envenenamentos e traumatismos",
+    "Contatos com serviços de saúde (Z)",
+    "Não informado (registro consolidado)"
+   ]
+  },
+  "mes": {
+   "rotulo": "Mês de processamento",
+   "tipo": "mes",
+   "ordem": [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez"
+   ]
+  },
+  "valor_grupo": {
+   "rotulo": "Valor aprovado por grupo (R$)",
+   "tipo": "categorica",
+   "ordem": [
+    "Promoção e prevenção",
+    "Finalidade diagnóstica (exames)",
+    "Procedimentos clínicos",
+    "Procedimentos cirúrgicos",
+    "Transplantes",
+    "Medicamentos",
+    "Órteses, próteses e materiais",
+    "Ações complementares",
+    "Ignorado"
+   ]
+  }
+ },
+ "indicadores": [
+  {
+   "rotulo": "Valor aprovado",
+   "tipo": "contagem",
+   "variavel": "valor_grupo",
+   "unidade": "R$"
+  },
+  {
+   "rotulo": "Valor médio por procedimento",
+   "tipo": "razao",
+   "num": [
+    "valor_grupo"
+   ],
+   "den": [
+    "total"
+   ],
+   "unidade": "R$"
+  },
+  {
+   "rotulo": "Exames (finalidade diagnóstica)",
+   "tipo": "pct",
+   "variavel": "grupo",
+   "categorias": [
+    "Finalidade diagnóstica (exames)"
+   ]
+  },
+  {
+   "rotulo": "Alta complexidade",
+   "tipo": "pct",
+   "variavel": "complexidade",
+   "categorias": [
+    "Alta complexidade"
+   ]
+  },
+  {
+   "rotulo": "Financiados pela atenção básica",
+   "tipo": "pct",
+   "variavel": "financiamento",
+   "categorias": [
+    "Atenção básica (PAB)"
+   ]
+  }
+ ],
+ "fonte": "Ministério da Saúde / DATASUS – SIA/SUS",
+ "atualizado_em": "2026-11-10"
+}
