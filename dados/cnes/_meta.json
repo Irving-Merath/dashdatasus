@@ -1,0 +1,195 @@
+{
+ "nome": "Estabelecimentos de saúde",
+ "sigla": "CNES",
+ "descricao": "Situação em dezembro de cada ano (Cadastro Nacional de Estabelecimentos de Saúde). Nas variáveis de leitos, os números são de leitos.",
+ "unidade": "estabelecimentos",
+ "variaveis": {
+  "tipo_unidade": {
+   "rotulo": "Tipo de estabelecimento",
+   "tipo": "categorica",
+   "ordem": [
+    "Consultório isolado",
+    "Clínica / centro de especialidade / policlínica",
+    "UBS / posto / centro de saúde",
+    "Apoio diagnóstico e terapia (exames)",
+    "Hospital geral",
+    "Hospital especializado",
+    "Unidade mista",
+    "Hospital-dia",
+    "Pronto-socorro / pronto atendimento",
+    "CAPS (saúde mental)",
+    "Farmácia",
+    "Unidade móvel",
+    "Vigilância, regulação e gestão",
+    "Outros"
+   ]
+  },
+  "natureza": {
+   "rotulo": "Natureza jurídica",
+   "tipo": "categorica",
+   "ordem": [
+    "Administração pública",
+    "Entidade empresarial",
+    "Sem fins lucrativos",
+    "Pessoa física",
+    "Ignorado"
+   ]
+  },
+  "vinculo_sus": {
+   "rotulo": "Atende o SUS",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não"
+   ]
+  },
+  "gestao": {
+   "rotulo": "Gestão",
+   "tipo": "categorica",
+   "ordem": [
+    "Municipal",
+    "Estadual",
+    "Dupla",
+    "Ignorado"
+   ]
+  },
+  "urgencia": {
+   "rotulo": "Urgência e emergência",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não"
+   ]
+  },
+  "ambulatorio": {
+   "rotulo": "Atendimento ambulatorial",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não"
+   ]
+  },
+  "internacao": {
+   "rotulo": "Internação",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não"
+   ]
+  },
+  "centro_cirurgico": {
+   "rotulo": "Centro cirúrgico",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não"
+   ]
+  },
+  "centro_obstetrico": {
+   "rotulo": "Centro obstétrico",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não"
+   ]
+  },
+  "neonatal": {
+   "rotulo": "Unidade neonatal",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não"
+   ]
+  },
+  "leitos_tipo": {
+   "rotulo": "Leitos por tipo (nº de leitos)",
+   "tipo": "categorica",
+   "ordem": [
+    "Cirúrgico",
+    "Clínico",
+    "Complementar (UTI e outros)",
+    "Obstétrico",
+    "Pediátrico",
+    "Outras especialidades",
+    "Hospital-dia"
+   ]
+  },
+  "leitos_sus": {
+   "rotulo": "Leitos SUS e não SUS (nº de leitos)",
+   "tipo": "categorica",
+   "ordem": [
+    "SUS",
+    "Não SUS"
+   ]
+  },
+  "leitos_uti": {
+   "rotulo": "Leitos de UTI (nº de leitos)",
+   "tipo": "categorica",
+   "ordem": [
+    "UTI",
+    "Demais leitos"
+   ]
+  }
+ },
+ "indicadores": [
+  {
+   "rotulo": "Atendem o SUS",
+   "tipo": "pct",
+   "variavel": "vinculo_sus",
+   "categorias": [
+    "Sim"
+   ]
+  },
+  {
+   "rotulo": "Públicos",
+   "tipo": "pct",
+   "variavel": "natureza",
+   "categorias": [
+    "Administração pública"
+   ]
+  },
+  {
+   "rotulo": "Hospitais",
+   "tipo": "contagem",
+   "variavel": "tipo_unidade",
+   "categorias": [
+    "Hospital geral",
+    "Hospital especializado",
+    "Unidade mista",
+    "Hospital-dia"
+   ]
+  },
+  {
+   "rotulo": "Com urgência e emergência",
+   "tipo": "contagem",
+   "variavel": "urgencia",
+   "categorias": [
+    "Sim"
+   ]
+  },
+  {
+   "rotulo": "Leitos existentes",
+   "tipo": "contagem",
+   "variavel": "leitos_sus"
+  },
+  {
+   "rotulo": "Leitos do SUS",
+   "tipo": "pct",
+   "variavel": "leitos_sus",
+   "categorias": [
+    "SUS"
+   ]
+  },
+  {
+   "rotulo": "Leitos de UTI",
+   "tipo": "contagem",
+   "variavel": "leitos_uti",
+   "categorias": [
+    "UTI"
+   ]
+  }
+ ],
+ "foto_anual": true,
+ "fonte": "Ministério da Saúde / DATASUS – CNES",
+ "atualizado_em": "2026-11-10"
+}
