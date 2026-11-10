@@ -1,0 +1,813 @@
+{
+ "nome": "Doenças de notificação",
+ "sigla": "SINAN",
+ "descricao": "Notificações por município de residência e ano de notificação (Sistema de Informação de Agravos de Notificação). Inclui casos suspeitos; a classificação final, quando existe, mostra quantos foram confirmados.",
+ "unidade": "notificações",
+ "variaveis": {
+  "sexo": {
+   "rotulo": "Sexo",
+   "tipo": "categorica",
+   "ordem": [
+    "Masculino",
+    "Feminino",
+    "Ignorado"
+   ]
+  },
+  "faixa_etaria": {
+   "rotulo": "Faixa etária",
+   "tipo": "categorica",
+   "ordem": [
+    "Menor de 1 ano",
+    "1 a 4",
+    "5 a 9",
+    "10 a 14",
+    "15 a 19",
+    "20 a 29",
+    "30 a 39",
+    "40 a 49",
+    "50 a 59",
+    "60 a 69",
+    "70 a 79",
+    "80 ou mais",
+    "Ignorado"
+   ]
+  },
+  "raca_cor": {
+   "rotulo": "Raça/cor",
+   "tipo": "categorica",
+   "ordem": [
+    "Branca",
+    "Preta",
+    "Amarela",
+    "Parda",
+    "Indígena",
+    "Ignorado"
+   ]
+  },
+  "gestante": {
+   "rotulo": "Gestante",
+   "tipo": "categorica",
+   "ordem": [
+    "Gestante",
+    "Não gestante",
+    "Não se aplica",
+    "Ignorado"
+   ]
+  },
+  "classificacao": {
+   "rotulo": "Classificação final",
+   "tipo": "categorica",
+   "ordem": [
+    "Confirmado",
+    "Descartado",
+    "Inconclusivo",
+    "Em investigação / ignorado"
+   ]
+  },
+  "evolucao": {
+   "rotulo": "Evolução / encerramento",
+   "tipo": "categorica",
+   "ordem": [
+    "Cura / alta",
+    "Vivo",
+    "Abandono de tratamento",
+    "Óbito pelo agravo",
+    "Óbito por outras causas",
+    "Óbito (causa não informada)",
+    "Aborto ou natimorto",
+    "Outros desfechos",
+    "Ignorado / em aberto"
+   ]
+  },
+  "tipo_acidente": {
+   "rotulo": "Tipo de animal",
+   "tipo": "categorica",
+   "ordem": [
+    "Escorpião",
+    "Serpente",
+    "Aranha",
+    "Abelha",
+    "Lagarta",
+    "Outros",
+    "Ignorado"
+   ]
+  },
+  "agente_toxico": {
+   "rotulo": "Agente tóxico",
+   "tipo": "categorica",
+   "ordem": [
+    "Medicamento",
+    "Drogas de abuso",
+    "Alimento e bebida",
+    "Produto de uso domiciliar",
+    "Raticida",
+    "Agrotóxico",
+    "Produto químico industrial",
+    "Cosmético e higiene",
+    "Planta tóxica",
+    "Produto veterinário",
+    "Metal",
+    "Outro",
+    "Ignorado"
+   ]
+  },
+  "circunstancia": {
+   "rotulo": "Circunstância",
+   "tipo": "categorica",
+   "ordem": [
+    "Tentativa de suicídio",
+    "Acidental",
+    "Abuso",
+    "Automedicação",
+    "Uso habitual",
+    "Uso terapêutico",
+    "Erro de administração",
+    "Prescrição inadequada",
+    "Ingestão de alimento ou bebida",
+    "Ambiental",
+    "Violência / homicídio",
+    "Tentativa de aborto",
+    "Outra",
+    "Ignorado"
+   ]
+  },
+  "viol_fisica": {
+   "rotulo": "Violência física",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não",
+    "Ignorado"
+   ]
+  },
+  "viol_psicologica": {
+   "rotulo": "Violência psicológica",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não",
+    "Ignorado"
+   ]
+  },
+  "viol_sexual": {
+   "rotulo": "Violência sexual",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não",
+    "Ignorado"
+   ]
+  },
+  "lesao_autoprovocada": {
+   "rotulo": "Lesão autoprovocada",
+   "tipo": "categorica",
+   "ordem": [
+    "Sim",
+    "Não",
+    "Ignorado"
+   ]
+  },
+  "mes": {
+   "rotulo": "Mês da notificação",
+   "tipo": "mes",
+   "ordem": [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez"
+   ]
+  },
+  "idade": {
+   "rotulo": "Idade",
+   "tipo": "numerica",
+   "unidade": "anos",
+   "observacao": "Menores de 1 ano contam como 0."
+  }
+ },
+ "agravos": {
+  "DENG": {
+   "nome": "Dengue",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "classificacao",
+    "evolucao",
+    "gestante"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Casos confirmados",
+     "tipo": "pct",
+     "variavel": "classificacao",
+     "categorias": [
+      "Confirmado"
+     ]
+    },
+    {
+     "rotulo": "Óbitos pelo agravo",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Óbito pelo agravo"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "CHIK": {
+   "nome": "Chikungunya",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "classificacao",
+    "evolucao",
+    "gestante"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Casos confirmados",
+     "tipo": "pct",
+     "variavel": "classificacao",
+     "categorias": [
+      "Confirmado"
+     ]
+    },
+    {
+     "rotulo": "Óbitos pelo agravo",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Óbito pelo agravo"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "ZIKA": {
+   "nome": "Zika",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "classificacao",
+    "evolucao",
+    "gestante"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Casos confirmados",
+     "tipo": "pct",
+     "variavel": "classificacao",
+     "categorias": [
+      "Confirmado"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "TUBE": {
+   "nome": "Tuberculose",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "evolucao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Encerrados por cura",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Cura / alta"
+     ]
+    },
+    {
+     "rotulo": "Abandono de tratamento",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Abandono de tratamento"
+     ]
+    },
+    {
+     "rotulo": "Óbitos pelo agravo",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Óbito pelo agravo"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "HANS": {
+   "nome": "Hanseníase",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "evolucao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Encerrados por cura",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Cura / alta"
+     ]
+    },
+    {
+     "rotulo": "Abandono de tratamento",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Abandono de tratamento"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "SIFA": {
+   "nome": "Sífilis adquirida",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "classificacao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Casos confirmados",
+     "tipo": "pct",
+     "variavel": "classificacao",
+     "categorias": [
+      "Confirmado"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "SIFG": {
+   "nome": "Sífilis em gestante",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    },
+    {
+     "rotulo": "Menores de 20 anos",
+     "tipo": "pct",
+     "variavel": "faixa_etaria",
+     "categorias": [
+      "Menor de 1 ano",
+      "1 a 4",
+      "5 a 9",
+      "10 a 14",
+      "15 a 19"
+     ]
+    }
+   ]
+  },
+  "SIFC": {
+   "nome": "Sífilis congênita",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "evolucao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Óbitos pelo agravo",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Óbito pelo agravo"
+     ]
+    },
+    {
+     "rotulo": "Aborto ou natimorto",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Aborto ou natimorto"
+     ]
+    }
+   ]
+  },
+  "HEPA": {
+   "nome": "Hepatites virais",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "classificacao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Casos confirmados",
+     "tipo": "pct",
+     "variavel": "classificacao",
+     "categorias": [
+      "Confirmado"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "MENI": {
+   "nome": "Meningite",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "classificacao",
+    "evolucao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Casos confirmados",
+     "tipo": "pct",
+     "variavel": "classificacao",
+     "categorias": [
+      "Confirmado"
+     ]
+    },
+    {
+     "rotulo": "Óbitos pelo agravo",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Óbito pelo agravo"
+     ]
+    },
+    {
+     "rotulo": "Menores de 5 anos",
+     "tipo": "pct",
+     "variavel": "faixa_etaria",
+     "categorias": [
+      "Menor de 1 ano",
+      "1 a 4"
+     ]
+    }
+   ]
+  },
+  "LEPT": {
+   "nome": "Leptospirose",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "classificacao",
+    "evolucao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Casos confirmados",
+     "tipo": "pct",
+     "variavel": "classificacao",
+     "categorias": [
+      "Confirmado"
+     ]
+    },
+    {
+     "rotulo": "Óbitos pelo agravo",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Óbito pelo agravo"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "LEIV": {
+   "nome": "Leishmaniose visceral",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "classificacao",
+    "evolucao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Casos confirmados",
+     "tipo": "pct",
+     "variavel": "classificacao",
+     "categorias": [
+      "Confirmado"
+     ]
+    },
+    {
+     "rotulo": "Óbitos pelo agravo",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Óbito pelo agravo"
+     ]
+    },
+    {
+     "rotulo": "Menores de 5 anos",
+     "tipo": "pct",
+     "variavel": "faixa_etaria",
+     "categorias": [
+      "Menor de 1 ano",
+      "1 a 4"
+     ]
+    }
+   ]
+  },
+  "LTAN": {
+   "nome": "Leishmaniose tegumentar",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "evolucao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Encerrados por cura",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Cura / alta"
+     ]
+    },
+    {
+     "rotulo": "Abandono de tratamento",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Abandono de tratamento"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "MALA": {
+   "nome": "Malária (fora da Amazônia Legal)",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "classificacao"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Casos confirmados",
+     "tipo": "pct",
+     "variavel": "classificacao",
+     "categorias": [
+      "Confirmado"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "ANIM": {
+   "nome": "Acidentes por animais peçonhentos",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "evolucao",
+    "tipo_acidente"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Escorpião",
+     "tipo": "pct",
+     "variavel": "tipo_acidente",
+     "categorias": [
+      "Escorpião"
+     ]
+    },
+    {
+     "rotulo": "Serpente",
+     "tipo": "pct",
+     "variavel": "tipo_acidente",
+     "categorias": [
+      "Serpente"
+     ]
+    },
+    {
+     "rotulo": "Óbitos pelo agravo",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Óbito pelo agravo"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "IEXO": {
+   "nome": "Intoxicações exógenas",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "evolucao",
+    "agente_toxico",
+    "circunstancia"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Tentativas de suicídio",
+     "tipo": "pct",
+     "variavel": "circunstancia",
+     "categorias": [
+      "Tentativa de suicídio"
+     ]
+    },
+    {
+     "rotulo": "Por medicamentos",
+     "tipo": "pct",
+     "variavel": "agente_toxico",
+     "categorias": [
+      "Medicamento"
+     ]
+    },
+    {
+     "rotulo": "Óbitos pelo agravo",
+     "tipo": "pct",
+     "variavel": "evolucao",
+     "categorias": [
+      "Óbito pelo agravo"
+     ]
+    },
+    {
+     "rotulo": "Idade média",
+     "tipo": "media",
+     "variavel": "idade"
+    }
+   ]
+  },
+  "VIOL": {
+   "nome": "Violência interpessoal e autoprovocada",
+   "variaveis": [
+    "sexo",
+    "faixa_etaria",
+    "raca_cor",
+    "mes",
+    "idade",
+    "viol_fisica",
+    "viol_psicologica",
+    "viol_sexual",
+    "lesao_autoprovocada"
+   ],
+   "indicadores": [
+    {
+     "rotulo": "Vítimas do sexo feminino",
+     "tipo": "pct",
+     "variavel": "sexo",
+     "categorias": [
+      "Feminino"
+     ]
+    },
+    {
+     "rotulo": "Violência física",
+     "tipo": "pct",
+     "variavel": "viol_fisica",
+     "categorias": [
+      "Sim"
+     ]
+    },
+    {
+     "rotulo": "Violência psicológica",
+     "tipo": "pct",
+     "variavel": "viol_psicologica",
+     "categorias": [
+      "Sim"
+     ]
+    },
+    {
+     "rotulo": "Violência sexual",
+     "tipo": "pct",
+     "variavel": "viol_sexual",
+     "categorias": [
+      "Sim"
+     ]
+    },
+    {
+     "rotulo": "Lesão autoprovocada",
+     "tipo": "pct",
+     "variavel": "lesao_autoprovocada",
+     "categorias": [
+      "Sim"
+     ]
+    },
+    {
+     "rotulo": "Menores de 20 anos",
+     "tipo": "pct",
+     "variavel": "faixa_etaria",
+     "categorias": [
+      "Menor de 1 ano",
+      "1 a 4",
+      "5 a 9",
+      "10 a 14",
+      "15 a 19"
+     ]
+    }
+   ]
+  }
+ },
+ "fonte": "Ministério da Saúde / DATASUS – SINAN",
+ "atualizado_em": "2026-11-10"
+}
