@@ -682,6 +682,280 @@ def sih_agregar(caminho_dbf, uf):
 
 
 # ----------------------------------------------------------------------
+# BASE: SINAN (doenças e agravos de notificação)
+# Os arquivos são NACIONAIS e por doença (ex.: DENGBR24.DBC = dengue,
+# Brasil, 2024); por isso quem coleta é o robô "BR". O resultado é
+# separado por estado na hora de salvar. Cada doença fica guardada com
+# um prefixo no nome da variável (ex.: "DENG|sexo"); o dashboard mostra
+# uma doença por vez.
+# ----------------------------------------------------------------------
+CONFIRMADO, DESCARTADO, INCONCLUSIVO = "Confirmado", "Descartado", "Inconclusivo"
+CLASSIF_PADRAO = {"1": CONFIRMADO, "2": DESCARTADO, "8": INCONCLUSIVO}
+
+CURA, ABANDONO = "Cura / alta", "Abandono de tratamento"
+OBITO_AG, OBITO_OUT = "Óbito pelo agravo", "Óbito por outras causas"
+OBITO_NE, VIVO, ABORTO = "Óbito (causa não informada)", "Vivo", "Aborto ou natimorto"
+OUTROS_DESF = "Outros desfechos"
+EVOL_PADRAO = {"1": CURA, "2": OBITO_AG, "3": OBITO_OUT, "4": OUTROS_DESF}
+EVOL_LEISH = {"1": CURA, "2": ABANDONO, "3": OBITO_AG, "4": OBITO_OUT,
+              "5": OUTROS_DESF, "6": OUTROS_DESF}
+
+BASICAS = ["sexo", "faixa_etaria", "raca_cor", "mes", "idade"]
+GESTANTE = ["gestante"]
+
+
+def _pct(rotulo, var, cats):
+    return {"rotulo": rotulo, "tipo": "pct", "variavel": var, "categorias": cats}
+
+
+IND_CONF = _pct("Casos confirmados", "classificacao", [CONFIRMADO])
+IND_OBITO = _pct("Óbitos pelo agravo", "evolucao", [OBITO_AG])
+IND_CURA = _pct("Encerrados por cura", "evolucao", [CURA])
+IND_ABANDONO = _pct("Abandono de tratamento", "evolucao", [ABANDONO])
+IND_IDADE = {"rotulo": "Idade média", "tipo": "media", "variavel": "idade"}
+IND_MENOR5 = _pct("Menores de 5 anos", "faixa_etaria", ["Menor de 1 ano", "1 a 4"])
+IND_MENOR20 = _pct("Menores de 20 anos", "faixa_etaria",
+                   ["Menor de 1 ano", "1 a 4", "5 a 9", "10 a 14", "15 a 19"])
+
+# campo do arquivo -> regras de cada doença
+#   classif: códigos de CLASSI_FIN       evol: (campo, códigos do desfecho)
+SINAN_AGRAVOS = {
+    "DENG": {"nome": "Dengue",
+             "classif": {**{c: CONFIRMADO for c in ["1", "2", "3", "4", "10", "11", "12"]},
+                         "5": DESCARTADO, "13": DESCARTADO, "8": INCONCLUSIVO},
+             "evol": ("EVOLUCAO", EVOL_PADRAO), "extras": GESTANTE,
+             "indicadores": [IND_CONF, IND_OBITO, IND_IDADE]},
+    "CHIK": {"nome": "Chikungunya",
+             "classif": {"13": CONFIRMADO, "5": DESCARTADO, "10": DESCARTADO,
+                         "11": DESCARTADO, "12": DESCARTADO, "8": INCONCLUSIVO},
+             "evol": ("EVOLUCAO", EVOL_PADRAO), "extras": GESTANTE,
+             "indicadores": [IND_CONF, IND_OBITO, IND_IDADE]},
+    "ZIKA": {"nome": "Zika", "classif": CLASSIF_PADRAO,
+             "evol": ("EVOLUCAO", EVOL_PADRAO), "extras": GESTANTE,
+             "indicadores": [IND_CONF, IND_IDADE]},
+    "TUBE": {"nome": "Tuberculose",
+             "evol": ("SITUA_ENCE", {"1": CURA, "2": ABANDONO, "10": ABANDONO,
+                                     "3": OBITO_AG, "4": OBITO_OUT,
+                                     **{c: OUTROS_DESF for c in ["5", "6", "7", "8", "9"]}}),
+             "indicadores": [IND_CURA, IND_ABANDONO, IND_OBITO, IND_IDADE]},
+    "HANS": {"nome": "Hanseníase",
+             "evol": ("TPALTA_N", {"1": CURA, "7": ABANDONO, "6": OBITO_NE,
+                                   **{c: OUTROS_DESF for c in ["2", "3", "4", "5", "8", "9"]}}),
+             "indicadores": [IND_CURA, IND_ABANDONO, IND_IDADE]},
+    "SIFA": {"nome": "Sífilis adquirida", "classif": CLASSIF_PADRAO,
+             "indicadores": [IND_CONF, IND_IDADE]},
+    "SIFG": {"nome": "Sífilis em gestante",
+             "indicadores": [IND_IDADE, IND_MENOR20]},
+    "SIFC": {"nome": "Sífilis congênita",
+             "evol": ("EVOLUCAO", {"1": VIVO, "2": OBITO_AG, "3": OBITO_OUT,
+                                   "4": ABORTO, "5": ABORTO}),
+             "indicadores": [IND_OBITO, _pct("Aborto ou natimorto", "evolucao", [ABORTO])]},
+    "HEPA": {"nome": "Hepatites virais",
+             "classif": {"1": CONFIRMADO, "2": CONFIRMADO, "3": DESCARTADO,
+                         "4": DESCARTADO, "8": INCONCLUSIVO},
+             "indicadores": [IND_CONF, IND_IDADE]},
+    "MENI": {"nome": "Meningite", "classif": CLASSIF_PADRAO,
+             "evol": ("EVOLUCAO", EVOL_PADRAO),
+             "indicadores": [IND_CONF, IND_OBITO, IND_MENOR5]},
+    "LEPT": {"nome": "Leptospirose", "classif": CLASSIF_PADRAO,
+             "evol": ("EVOLUCAO", EVOL_PADRAO),
+             "indicadores": [IND_CONF, IND_OBITO, IND_IDADE]},
+    "LEIV": {"nome": "Leishmaniose visceral", "classif": CLASSIF_PADRAO,
+             "evol": ("EVOLUCAO", EVOL_LEISH),
+             "indicadores": [IND_CONF, IND_OBITO, IND_MENOR5]},
+    "LTAN": {"nome": "Leishmaniose tegumentar",
+             "evol": ("EVOLUCAO", EVOL_LEISH),
+             "indicadores": [IND_CURA, IND_ABANDONO, IND_IDADE]},
+    "MALA": {"nome": "Malária (fora da Amazônia Legal)", "classif": CLASSIF_PADRAO,
+             "indicadores": [IND_CONF, IND_IDADE]},
+    "ANIM": {"nome": "Acidentes por animais peçonhentos",
+             "evol": ("EVOLUCAO", EVOL_PADRAO), "extras": ["tipo_acidente"],
+             "indicadores": [_pct("Escorpião", "tipo_acidente", ["Escorpião"]),
+                             _pct("Serpente", "tipo_acidente", ["Serpente"]),
+                             IND_OBITO, IND_IDADE]},
+    "IEXO": {"nome": "Intoxicações exógenas",
+             "evol": ("EVOLUCAO", {"1": CURA, "2": CURA, "3": OBITO_AG, "4": OBITO_OUT,
+                                   "5": OUTROS_DESF}),
+             "extras": ["agente_toxico", "circunstancia"],
+             "indicadores": [_pct("Tentativas de suicídio", "circunstancia",
+                                  ["Tentativa de suicídio"]),
+                             _pct("Por medicamentos", "agente_toxico", ["Medicamento"]),
+                             IND_OBITO, IND_IDADE]},
+    "VIOL": {"nome": "Violência interpessoal e autoprovocada",
+             "extras": ["viol_fisica", "viol_psicologica", "viol_sexual",
+                        "lesao_autoprovocada"],
+             "indicadores": [_pct("Vítimas do sexo feminino", "sexo", ["Feminino"]),
+                             _pct("Violência física", "viol_fisica", ["Sim"]),
+                             _pct("Violência psicológica", "viol_psicologica", ["Sim"]),
+                             _pct("Violência sexual", "viol_sexual", ["Sim"]),
+                             _pct("Lesão autoprovocada", "lesao_autoprovocada", ["Sim"]),
+                             _pct("Menores de 20 anos", "faixa_etaria",
+                                  IND_MENOR20["categorias"])]},
+}
+
+
+def _variaveis_do_agravo(cfg):
+    v = list(BASICAS)
+    if "classif" in cfg:
+        v.append("classificacao")
+    if "evol" in cfg:
+        v.append("evolucao")
+    return v + cfg.get("extras", [])
+
+
+SIM_NAO = ["Sim", "Não", "Ignorado"]
+SINAN_META = {
+    "nome": "Doenças de notificação",
+    "sigla": "SINAN",
+    "descricao": "Notificações por município de residência e ano de notificação "
+                 "(Sistema de Informação de Agravos de Notificação). Inclui casos "
+                 "suspeitos; a classificação final, quando existe, mostra quantos "
+                 "foram confirmados.",
+    "unidade": "notificações",
+    "variaveis": {
+        "sexo": {"rotulo": "Sexo", "tipo": "categorica",
+                 "ordem": ["Masculino", "Feminino", "Ignorado"]},
+        "faixa_etaria": {"rotulo": "Faixa etária", "tipo": "categorica",
+                         "ordem": SIM_FAIXAS + ["Ignorado"]},
+        "raca_cor": {"rotulo": "Raça/cor", "tipo": "categorica",
+                     "ordem": ["Branca", "Preta", "Amarela", "Parda", "Indígena", "Ignorado"]},
+        "gestante": {"rotulo": "Gestante", "tipo": "categorica",
+                     "ordem": ["Gestante", "Não gestante", "Não se aplica", "Ignorado"]},
+        "classificacao": {"rotulo": "Classificação final", "tipo": "categorica",
+                          "ordem": [CONFIRMADO, DESCARTADO, INCONCLUSIVO,
+                                    "Em investigação / ignorado"]},
+        "evolucao": {"rotulo": "Evolução / encerramento", "tipo": "categorica",
+                     "ordem": [CURA, VIVO, ABANDONO, OBITO_AG, OBITO_OUT, OBITO_NE, ABORTO,
+                               OUTROS_DESF, "Ignorado / em aberto"]},
+        "tipo_acidente": {"rotulo": "Tipo de animal", "tipo": "categorica",
+                          "ordem": ["Escorpião", "Serpente", "Aranha", "Abelha", "Lagarta",
+                                    "Outros", "Ignorado"]},
+        "agente_toxico": {"rotulo": "Agente tóxico", "tipo": "categorica",
+                          "ordem": ["Medicamento", "Drogas de abuso", "Alimento e bebida",
+                                    "Produto de uso domiciliar", "Raticida", "Agrotóxico",
+                                    "Produto químico industrial", "Cosmético e higiene",
+                                    "Planta tóxica", "Produto veterinário", "Metal",
+                                    "Outro", "Ignorado"]},
+        "circunstancia": {"rotulo": "Circunstância", "tipo": "categorica",
+                          "ordem": ["Tentativa de suicídio", "Acidental", "Abuso",
+                                    "Automedicação", "Uso habitual", "Uso terapêutico",
+                                    "Erro de administração", "Prescrição inadequada",
+                                    "Ingestão de alimento ou bebida", "Ambiental",
+                                    "Violência / homicídio", "Tentativa de aborto",
+                                    "Outra", "Ignorado"]},
+        "viol_fisica": {"rotulo": "Violência física", "tipo": "categorica", "ordem": SIM_NAO},
+        "viol_psicologica": {"rotulo": "Violência psicológica", "tipo": "categorica",
+                             "ordem": SIM_NAO},
+        "viol_sexual": {"rotulo": "Violência sexual", "tipo": "categorica", "ordem": SIM_NAO},
+        "lesao_autoprovocada": {"rotulo": "Lesão autoprovocada", "tipo": "categorica",
+                                "ordem": SIM_NAO},
+        "mes": {"rotulo": "Mês da notificação", "tipo": "mes", "ordem": MESES},
+        "idade": {"rotulo": "Idade", "tipo": "numerica", "unidade": "anos",
+                  "observacao": "Menores de 1 ano contam como 0."},
+    },
+    "agravos": {cod: {"nome": c["nome"], "variaveis": _variaveis_do_agravo(c),
+                      "indicadores": c["indicadores"]}
+                for cod, c in SINAN_AGRAVOS.items()},
+    "fonte": "Ministério da Saúde / DATASUS – SINAN",
+}
+
+SINAN_PASTAS = [
+    ("/dissemin/publicos/SINAN/DADOS/FINAIS", "final"),
+    ("/dissemin/publicos/SINAN/DADOS/PRELIM", "preliminar"),
+]
+
+AGENTE_TOX = {"1": "Medicamento", "2": "Agrotóxico", "3": "Agrotóxico", "4": "Agrotóxico",
+              "5": "Raticida", "6": "Produto veterinário", "7": "Produto de uso domiciliar",
+              "8": "Cosmético e higiene", "9": "Produto químico industrial", "10": "Metal",
+              "11": "Drogas de abuso", "12": "Planta tóxica", "13": "Alimento e bebida",
+              "14": "Outro"}
+CIRCUNSTANCIA = {"1": "Uso habitual", "2": "Acidental", "3": "Ambiental",
+                 "4": "Uso terapêutico", "5": "Prescrição inadequada",
+                 "6": "Erro de administração", "7": "Automedicação", "8": "Abuso",
+                 "9": "Ingestão de alimento ou bebida", "10": "Tentativa de suicídio",
+                 "11": "Tentativa de aborto", "12": "Violência / homicídio", "13": "Outra"}
+
+
+def sinan_arquivos(uf, ano):
+    return [f"{ag}BR{ano % 100:02d}.DBC" for ag in SINAN_AGRAVOS]
+
+
+def _codigo(serie):
+    """'01' -> '1', '0' ou '' -> '' (assim '01' e '1' viram a mesma coisa)."""
+    return serie.str.lstrip("0")
+
+
+def sinan_municipio(b):
+    """Município de residência; se faltar, '<UF>0000' (residência ou notificação)."""
+    mun = b["ID_MN_RESI"].str[:6]
+    ok = mun.str.fullmatch(r"\d{6}") & mun.str[:2].isin(list(UFS))
+    uf_res = b["SG_UF"].str[:2].where(b["SG_UF"].str[:2].isin(list(UFS)))
+    uf_not = b["SG_UF_NOT"].str[:2].where(b["SG_UF_NOT"].str[:2].isin(list(UFS)))
+    reserva = uf_res.fillna(uf_not)
+    return mun.where(ok, reserva + "0000")
+
+
+def sinan_agregar(caminho_dbf, uf):
+    ag = Path(caminho_dbf).stem[:4].upper()
+    cfg = SINAN_AGRAVOS[ag]
+    variaveis = ["total"] + _variaveis_do_agravo(cfg)
+    cols = ["ID_MN_RESI", "SG_UF", "SG_UF_NOT", "CS_SEXO", "NU_IDADE_N", "CS_RACA",
+            "CS_GESTANT", "DT_NOTIFIC", "CLASSI_FIN", "TP_ACIDENT", "AGENTE_TOX",
+            "CIRCUNSTAN", "VIOL_FISIC", "VIOL_PSICO", "VIOL_SEXU", "LES_AUTOP"]
+    if "evol" in cfg:
+        cols.append(cfg["evol"][0])
+    partes = []
+    for b in ler_dbf(caminho_dbf, cols):
+        df = pd.DataFrame({"cod_mun": sinan_municipio(b)})
+        idade_n = b["NU_IDADE_N"].str.zfill(4)
+        unidade = idade_n.str[0]
+        valor = pd.to_numeric(idade_n.str[1:], errors="coerce")
+        idade = pd.Series(np.nan, index=b.index)
+        idade[unidade.isin(["1", "2", "3"])] = 0  # horas, dias, meses
+        idade[unidade == "4"] = valor[unidade == "4"]
+        idade = idade.where((idade >= 0) & (idade <= 125))
+        mes = pd.to_numeric(b["DT_NOTIFIC"].str[4:6], errors="coerce")
+
+        df["total"] = "Total"
+        df["sexo"] = mapear(b["CS_SEXO"], {"M": "Masculino", "F": "Feminino",
+                                           "1": "Masculino", "2": "Feminino"})
+        df["faixa_etaria"] = faixas(idade, [0, 1, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 200],
+                                    SIM_FAIXAS)
+        df["raca_cor"] = mapear(_codigo(b["CS_RACA"]), {
+            "1": "Branca", "2": "Preta", "3": "Amarela", "4": "Parda", "5": "Indígena"})
+        df["mes"] = mes.map(lambda m: MESES[int(m) - 1] if m == m and 1 <= m <= 12 else None)
+        df["idade"] = idade.astype("Int64")
+        if "gestante" in variaveis:
+            df["gestante"] = mapear(_codigo(b["CS_GESTANT"]), {
+                "1": "Gestante", "2": "Gestante", "3": "Gestante", "4": "Gestante",
+                "5": "Não gestante", "6": "Não se aplica"})
+        if "classificacao" in variaveis:
+            df["classificacao"] = mapear(b["CLASSI_FIN"].str.lstrip("0"), cfg["classif"],
+                                         padrao="Em investigação / ignorado")
+        if "evolucao" in variaveis:
+            campo, mapa = cfg["evol"]
+            df["evolucao"] = mapear(_codigo(b[campo]), mapa, padrao="Ignorado / em aberto")
+        if "tipo_acidente" in variaveis:
+            df["tipo_acidente"] = mapear(_codigo(b["TP_ACIDENT"]), {
+                "1": "Serpente", "2": "Aranha", "3": "Escorpião", "4": "Lagarta",
+                "5": "Abelha", "6": "Outros"})
+        if "agente_toxico" in variaveis:
+            df["agente_toxico"] = mapear(_codigo(b["AGENTE_TOX"]), AGENTE_TOX)
+        if "circunstancia" in variaveis:
+            df["circunstancia"] = mapear(_codigo(b["CIRCUNSTAN"]), CIRCUNSTANCIA)
+        for var, campo in (("viol_fisica", "VIOL_FISIC"), ("viol_psicologica", "VIOL_PSICO"),
+                           ("viol_sexual", "VIOL_SEXU"), ("lesao_autoprovocada", "LES_AUTOP")):
+            if var in variaveis:
+                df[var] = mapear(b[campo], {"1": "Sim", "2": "Não"})
+
+        df = df[df["cod_mun"].notna()]
+        for var in variaveis:
+            sub = df[["cod_mun", var]].dropna()
+            partes.append(contar(sub, var, f"{ag}|{var}"))
+    return somar_partes(partes)
+
+
+# ----------------------------------------------------------------------
 # CATÁLOGO DE BASES
 # Bases com "ativa": False aparecem no dashboard como "em breve".
 # Elas serão ativadas uma por vez, nas próximas etapas.
@@ -695,7 +969,9 @@ BASES = {
             "arquivos": sim_arquivos, "agregar": sim_agregar},
     "sih": {"ativa": True, "meta": SIH_META, "pastas": SIH_PASTAS,
             "arquivos": sih_arquivos, "agregar": sih_agregar},
-    "sinan": {"ativa": False, "meta": {"nome": "Doenças de notificação", "sigla": "SINAN"}},
+    "sinan": {"ativa": True, "escopo": "nacional", "faltando_ok": True,
+              "meta": SINAN_META, "pastas": SINAN_PASTAS,
+              "arquivos": sinan_arquivos, "agregar": sinan_agregar},
     "cnes": {"ativa": False, "meta": {"nome": "Estabelecimentos de saúde", "sigla": "CNES"}},
     "sia": {"ativa": False, "meta": {"nome": "Atendimentos ambulatoriais", "sigla": "SIA"}},
     "pni": {"ativa": False, "meta": {"nome": "Vacinação", "sigla": "PNI"}},
@@ -727,6 +1003,7 @@ def coletar(base, uf):
     ftp = FTPDatasus()
     falhas, novos = [], 0
     tmp = Path(tempfile.mkdtemp())
+    nacional = cfg.get("escopo", "uf") == "nacional"
 
     for ano in range(cfg.get("ano_inicial", ANO_INICIAL), ANO_FINAL + 1):
         # Um ano pode ter um arquivo (SINASC, SIM) ou vários (SIH: um por mês);
@@ -744,17 +1021,22 @@ def coletar(base, uf):
             log(f"{rotulo}: não encontrado no DATASUS (talvez ainda não publicado).")
             continue
         if faltando:
-            log(f"{rotulo}: {len(faltando)} de {len(nomes)} arquivo(s) ainda não publicado(s).")
+            log(f"{rotulo}: {len(faltando)} de {len(nomes)} arquivo(s) não existe(m) no DATASUS"
+                + (" (normal: nem toda doença tem arquivo em todos os anos)."
+                   if cfg.get("faltando_ok") else " (talvez ainda não publicado)."))
 
         chave = f"{ano}"
         assinatura = "|".join(f"{p}/{r}:{t}" for _, p, r, _, t in achados)
-        arq_final = PASTA_DADOS / base / f"{uf}_{ano}.parquet"
-        arq_prelim = arq_final.with_name(f"{uf}_{ano}_prelim.parquet")
-        if controle.get(chave) == assinatura and (arq_final.exists() or arq_prelim.exists()):
+        # bases nacionais são salvas por estado: basta existir algum arquivo do ano
+        prefixo = "??" if nacional else uf
+        ja_salvo = (any((PASTA_DADOS / base).glob(f"{prefixo}_{ano}.parquet"))
+                    or any((PASTA_DADOS / base).glob(f"{prefixo}_{ano}_prelim.parquet")))
+        if controle.get(chave) == assinatura and ja_salvo:
             log(f"{rotulo}: sem mudanças desde a última coleta. Pulando.")
             continue
 
-        preliminar = bool(faltando) or any(s != "final" for _, _, _, s, _ in achados)
+        preliminar = ((bool(faltando) and not cfg.get("faltando_ok"))
+                      or any(s != "final" for _, _, _, s, _ in achados))
         resumos, falhou = [], False
         for nome, pasta, real, situacao, tam in achados:
             log(f"{nome}: baixando ({situacao}, {tam or '?'} bytes)...")
@@ -781,17 +1063,24 @@ def coletar(base, uf):
         res.insert(0, "ano", ano)
         res["n"] = res["n"].astype("int32")
         sufixo = "_prelim" if preliminar else ""
-        res.to_parquet(saida / f"{uf}_{ano}{sufixo}.parquet", index=False)
-
-        # versão resumida por estado (usada na visão "Brasil")
-        r_uf = (res.groupby(["ano", "variavel", "categoria"])["n"].sum()
-                   .reset_index())
-        r_uf.insert(1, "cod_mun", COD_UF[uf])
-        r_uf.to_parquet(saida / "_uf" / f"{uf}_{ano}{sufixo}.parquet", index=False)
+        # base nacional: um arquivo por estado (pelos 2 primeiros dígitos do município)
+        if nacional:
+            grupos = [(UFS[c], g) for c, g in res.groupby(res["cod_mun"].str[:2])
+                      if c in UFS]
+        else:
+            grupos = [(uf, res)]
+        for sigla, parte in grupos:
+            parte.to_parquet(saida / f"{sigla}_{ano}{sufixo}.parquet", index=False)
+            # versão resumida por estado (usada na visão "Brasil")
+            r_uf = (parte.groupby(["ano", "variavel", "categoria"])["n"].sum()
+                         .reset_index())
+            r_uf.insert(1, "cod_mun", COD_UF[sigla])
+            r_uf.to_parquet(saida / "_uf" / f"{sigla}_{ano}{sufixo}.parquet", index=False)
 
         controle[chave] = assinatura
         novos += 1
-        log(f"{rotulo}: ok ({int(res.loc[res.variavel == 'total', 'n'].sum()):,} registros).")
+        eh_total = res.variavel.str.split("|").str[-1] == "total"
+        log(f"{rotulo}: ok ({int(res.loc[eh_total, 'n'].sum()):,} registros).")
 
     (saida / "_controle" / f"{uf}.json").write_text(
         json.dumps(controle, indent=1), encoding="utf-8")

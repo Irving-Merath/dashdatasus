@@ -131,7 +131,7 @@ def listar_arquivos(base, versao):
 
 
 @st.cache_data(ttl=3600, show_spinner="Carregando dados…")
-def carregar(base, nivel, uf, anos, versao):
+def carregar(base, nivel, uf, anos, versao, agravo=None):
     arqs = listar_arquivos(base, versao)
     sel = arqs[(arqs.nivel == nivel) & arqs.ano.between(anos[0], anos[1])]
     if uf:
@@ -139,6 +139,10 @@ def carregar(base, nivel, uf, anos, versao):
     if sel.empty:
         return pd.DataFrame(columns=["ano", "cod_mun", "variavel", "categoria", "n"])
     df = pd.concat([pd.read_parquet(c) for c in sel.caminho], ignore_index=True)
+    if agravo:  # SINAN: as variáveis vêm como "DENG|sexo"; fica só a doença escolhida
+        prefixo = f"{agravo}|"
+        df = df[df.variavel.astype(str).str.startswith(prefixo)].copy()
+        df["variavel"] = df.variavel.astype(str).str[len(prefixo):]
     for col in ("cod_mun", "variavel", "categoria"):
         df[col] = df[col].astype("category")
     return df
@@ -257,6 +261,18 @@ if base not in metas:
     st.stop()
 
 meta = metas[base]
+variaveis = meta["variaveis"]
+indicadores = meta.get("indicadores", [])
+nome_tema = meta["nome"]
+agravos = meta.get("agravos")  # só o SINAN tem: várias doenças na mesma base
+agravo = None
+if agravos:
+    agravo = c1.selectbox("Doença ou agravo", list(agravos),
+                          format_func=lambda a: agravos[a]["nome"])
+    variaveis = {k: variaveis[k] for k in agravos[agravo]["variaveis"] if k in variaveis}
+    indicadores = agravos[agravo]["indicadores"]
+    nome_tema = agravos[agravo]["nome"]
+
 arqs = listar_arquivos(base, VERSAO)
 if arqs.empty:
     st.warning("Os dados desta base ainda estão sendo coletados. Volte mais tarde.")
@@ -278,11 +294,11 @@ local = c3.selectbox("Local", ["BR"] + ufs_disp,
 
 nomes_mun = municipios(VERSAO)
 if local == "BR":
-    df = carregar(base, "uf", None, anos, VERSAO)
+    df = carregar(base, "uf", None, anos, VERSAO, agravo)
     c4.selectbox("Municípios", ["Escolha um estado para filtrar municípios"], disabled=True)
     titulo_local = "Brasil"
 else:
-    df_uf = carregar(base, "mun", local, anos, VERSAO)
+    df_uf = carregar(base, "mun", local, anos, VERSAO, agravo)
     cods = sorted(df_uf.cod_mun.unique(), key=lambda c: nome_local(c, nomes_mun))
     escolha = c4.multiselect("Municípios", cods, format_func=lambda c: nome_local(c, nomes_mun),
                              placeholder="Todos os municípios do estado")
@@ -301,17 +317,16 @@ if df.empty or total(df) == 0:
     st.info("Não há registros para essa combinação de filtros.")
     st.stop()
 
-variaveis = meta["variaveis"]
 aba1, aba2, aba3, aba4 = st.tabs(["Visão geral", "Distribuições", "Comparar locais", "Tabela"])
 
 # ----------------------------------------------------------------------
 # Aba 1 – Visão geral
 # ----------------------------------------------------------------------
 with aba1:
-    st.subheader(f"{meta['nome']} · {titulo_local} · {periodo_txt}")
+    st.subheader(f"{nome_tema} · {titulo_local} · {periodo_txt}")
     cards = [f'<div class="kpi destaque"><div class="valor">{fmt_int(total(df))}</div>'
              f'<div class="rotulo">{meta["unidade"].capitalize()}</div></div>']
-    for ind in meta.get("indicadores", []):
+    for ind in indicadores:
         v = formatar_indicador(valor_indicador(df, ind), ind, meta)
         cards.append(f'<div class="kpi"><div class="valor">{v}</div>'
                      f'<div class="rotulo">{ind["rotulo"]}</div></div>')
@@ -398,7 +413,7 @@ with aba2:
 # Aba 3 – Comparar locais
 # ----------------------------------------------------------------------
 with aba3:
-    inds = [{"rotulo": meta["unidade"].capitalize(), "tipo": "total"}] + meta.get("indicadores", [])
+    inds = [{"rotulo": meta["unidade"].capitalize(), "tipo": "total"}] + indicadores
     ind = st.selectbox("Indicador", inds, format_func=lambda i: i["rotulo"])
     grupos = []
     for cod, g in df.groupby("cod_mun", observed=True):
