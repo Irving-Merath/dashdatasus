@@ -33,8 +33,12 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements-coleta.txt
+      # limite menor que o do job (350): se travar, sobra tempo para guardar
+      # o que já foi coletado no passo seguinte
       - run: python coletar.py --base ${{ inputs.base || 'todas' }} --uf ${{ matrix.uf }}
+        timeout-minutes: 320
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: saida-${{ matrix.uf }}
           path: saida/

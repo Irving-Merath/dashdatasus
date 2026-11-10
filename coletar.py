@@ -23,6 +23,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import sys
 import tempfile
 import time
@@ -49,6 +50,31 @@ UFS = {
     "51": "MT", "52": "GO", "53": "DF",
 }
 COD_UF = {sigla: cod for cod, sigla in UFS.items()}
+
+
+# Tempo máximo para baixar e processar UM arquivo. Às vezes a conexão com o
+# FTP do DATASUS trava sem dar erro; passado esse tempo o robô desiste do
+# arquivo (tenta de novo na próxima execução) e segue para o próximo.
+LIMITE_POR_ARQUIVO = 30 * 60  # segundos
+
+
+class TempoEsgotado(BaseException):
+    """BaseException (e não Exception) para não ser engolida pelas novas tentativas."""
+
+
+def _alarme(signum, frame):
+    raise TempoEsgotado()
+
+
+def iniciar_cronometro():
+    if hasattr(signal, "SIGALRM"):  # só existe no Linux (onde o robô roda)
+        signal.signal(signal.SIGALRM, _alarme)
+        signal.alarm(LIMITE_POR_ARQUIVO)
+
+
+def parar_cronometro():
+    if hasattr(signal, "SIGALRM"):
+        signal.alarm(0)
 
 
 def aviso(msg):
@@ -1011,12 +1037,21 @@ def coletar(base, uf):
         nomes = cfg["arquivos"](uf, ano)
         rotulo = nomes[0] if len(nomes) == 1 else f"{base.upper()} {uf} {ano}"
         achados, faltando = [], []
-        for nome in nomes:
-            pasta, real, situacao = ftp.encontrar(cfg["pastas"], nome)
-            if pasta:
-                achados.append((nome, pasta, real, situacao, ftp.tamanho(pasta, real)))
-            else:
-                faltando.append(nome)
+        iniciar_cronometro()
+        try:
+            for nome in nomes:
+                pasta, real, situacao = ftp.encontrar(cfg["pastas"], nome)
+                if pasta:
+                    achados.append((nome, pasta, real, situacao, ftp.tamanho(pasta, real)))
+                else:
+                    faltando.append(nome)
+        except TempoEsgotado:
+            aviso(f"{rotulo}: o FTP não respondeu ao listar os arquivos. Fica para a próxima.")
+            ftp.ftp = None
+            falhas.append(rotulo)
+            continue
+        finally:
+            parar_cronometro()
         if not achados:
             log(f"{rotulo}: não encontrado no DATASUS (talvez ainda não publicado).")
             continue
@@ -1041,19 +1076,28 @@ def coletar(base, uf):
         for nome, pasta, real, situacao, tam in achados:
             log(f"{nome}: baixando ({situacao}, {tam or '?'} bytes)...")
             dbc, dbf = tmp / real, tmp / (Path(real).stem + ".dbf")
-            if not ftp.baixar(pasta, real, dbc):
+            iniciar_cronometro()
+            try:
+                if not ftp.baixar(pasta, real, dbc):
+                    falhas.append(nome)
+                    falhou = True
+                    break
+                dbc_para_dbf(dbc, dbf)
+                resumos.append(cfg["agregar"](dbf, uf))
+            except TempoEsgotado:
+                aviso(f"{nome}: passou de {LIMITE_POR_ARQUIVO // 60} minutos (conexão travada?). "
+                      "Desistindo deste arquivo por agora.")
+                ftp.ftp = None  # força uma conexão nova no próximo arquivo
                 falhas.append(nome)
                 falhou = True
                 break
-            try:
-                dbc_para_dbf(dbc, dbf)
-                resumos.append(cfg["agregar"](dbf, uf))
             except Exception as e:  # noqa: BLE001
                 aviso(f"{nome}: erro ao processar ({e}).")
                 falhas.append(nome)
                 falhou = True
                 break
             finally:
+                parar_cronometro()
                 for p in (dbc, dbf):
                     p.unlink(missing_ok=True)
         if falhou:
@@ -1078,6 +1122,10 @@ def coletar(base, uf):
             r_uf.to_parquet(saida / "_uf" / f"{sigla}_{ano}{sufixo}.parquet", index=False)
 
         controle[chave] = assinatura
+        # grava o controle a cada ano: se o robô for interrompido, o que já
+        # foi feito é aproveitado
+        (saida / "_controle" / f"{uf}.json").write_text(
+            json.dumps(controle, indent=1), encoding="utf-8")
         novos += 1
         eh_total = res.variavel.str.split("|").str[-1] == "total"
         log(f"{rotulo}: ok ({int(res.loc[eh_total, 'n'].sum()):,} registros).")
